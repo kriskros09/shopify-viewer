@@ -81,29 +81,47 @@ async function testShopifyConnection() {
  * This is needed because server-side fetch requires absolute URLs
  */
 function getBaseUrl() {
-  // First priority: NEXT_PUBLIC_APP_URL if set (works for both dev and prod)
+  // First priority: Check if we're already on the vercel.app domain
+  if (typeof window !== 'undefined') {
+    const currentUrl = window.location.origin;
+    if (currentUrl.includes('vercel.app') || currentUrl.includes('shopify-viewer')) {
+      console.log('Using current origin as base URL:', currentUrl);
+      return currentUrl;
+    }
+  }
+  
+  // Second priority: NEXT_PUBLIC_APP_URL if set (works for both dev and prod)
   if (process.env.NEXT_PUBLIC_APP_URL) {
+    console.log('Using NEXT_PUBLIC_APP_URL:', process.env.NEXT_PUBLIC_APP_URL);
     return process.env.NEXT_PUBLIC_APP_URL;
   }
   
   // For Vercel production deployment
   if (process.env.VERCEL_URL) {
     // Always use HTTPS for Vercel deployments
-    return `https://${process.env.VERCEL_URL}`;
+    const url = `https://${process.env.VERCEL_URL}`;
+    console.log('Using VERCEL_URL:', url);
+    return url;
   }
   
   // For Vercel preview deployments
   if (process.env.VERCEL_BRANCH_URL) {
-    return `https://${process.env.VERCEL_BRANCH_URL}`;
+    const url = `https://${process.env.VERCEL_BRANCH_URL}`;
+    console.log('Using VERCEL_BRANCH_URL:', url);
+    return url;
   }
   
   // For development - use an absolute URL for consistency
   if (process.env.NODE_ENV === 'development') {
-    return process.env.NEXT_PUBLIC_DEV_URL || 'http://localhost:3000';
+    const url = process.env.NEXT_PUBLIC_DEV_URL || 'http://localhost:3000';
+    console.log('Using development URL:', url);
+    return url;
   }
   
   // Final fallback - restore localhost default as it's needed for Vercel
-  return process.env.SITE_URL || 'http://localhost:3000';
+  const fallback = process.env.SITE_URL || 'http://localhost:3000';
+  console.log('Using fallback URL:', fallback);
+  return fallback;
 }
 
 /**
@@ -150,35 +168,64 @@ export async function syncProductsAction(): Promise<SyncResponse> {
     } else {
       // We're either running on Vercel, client-side, or have a specific baseUrl configured
       // In these cases, we need to use fetch with absolute URLs
-      const fullUrl = `${baseUrl}${syncEndpoint}`;
-      console.log('Syncing products using full URL:', fullUrl);
+      const fullUrl = isVercel ? syncEndpoint : `${baseUrl}${syncEndpoint}`;
+      console.log('Syncing products using URL:', fullUrl);
       
-      // Make the call to our API endpoint that handles the Shopify sync logic
-      const response = await fetch(fullUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        cache: 'no-store',
-      });
+      try {
+        // Make the call to our API endpoint that handles the Shopify sync logic
+        console.log('Initiating fetch request with method:', 'POST');
+        
+        const response = await fetch(fullUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          cache: 'no-store',
+          // Add longer timeout for Vercel environment
+          ...(isVercel ? { next: { revalidate: 0 } } : {}),
+        });
 
-      console.log('Response status:', response.status, response.statusText);
-      
-      if (!response.ok) {
-        // Try to get more details about the error
-        try {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message || errorData.error || 
-            `Failed to sync products: ${response.status} ${response.statusText}`
-          );
-        } catch (parseError) {
-          console.error('Error parsing error response:', parseError);
-          throw new Error(`Failed to sync products: ${response.status} ${response.statusText}`);
+        console.log('Response received - status:', response.status, response.statusText);
+        
+        if (!response.ok) {
+          // Try to get more details about the error
+          try {
+            const errorText = await response.text();
+            console.error('Error response body:', errorText);
+            
+            let errorData;
+            try {
+              errorData = JSON.parse(errorText);
+            } catch (jsonError) {
+              console.error('Response not in JSON format');
+              throw new Error(`Failed to sync products: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`);
+            }
+            
+            throw new Error(
+              errorData.message || errorData.error || 
+              `Failed to sync products: ${response.status} ${response.statusText}`
+            );
+          } catch (parseError) {
+            console.error('Error parsing error response:', parseError);
+            throw new Error(`Failed to sync products: ${response.status} ${response.statusText}`);
+          }
         }
-      }
 
-      responseData = await response.json();
+        responseData = await response.json();
+      } catch (fetchError: unknown) {
+        console.error('Fetch operation failed:', fetchError);
+        
+        // For Vercel debugging, log more details
+        if (isVercel) {
+          console.error('Vercel environment detected, fetch error details:');
+          console.error('- Error name:', fetchError instanceof Error ? fetchError.name : 'Unknown');
+          console.error('- Error message:', fetchError instanceof Error ? fetchError.message : String(fetchError));
+          console.error('- Target URL:', fullUrl);
+          console.error('- Stack trace:', fetchError instanceof Error ? fetchError.stack : 'No stack trace');
+        }
+        
+        throw new Error(`Fetch operation failed: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
+      }
     }
     
     // Revalidate the products page to show updated data
@@ -246,36 +293,66 @@ export async function syncOrdersAction(startDate: string, endDate: string): Prom
     } else {
       // We're either running on Vercel, client-side, or have a specific baseUrl configured
       // In these cases, we need to use fetch with absolute URLs
-      const fullUrl = `${baseUrl}${syncEndpoint}`;
-      console.log('Syncing orders using full URL:', fullUrl);
+      const fullUrl = isVercel ? syncEndpoint : `${baseUrl}${syncEndpoint}`;
+      console.log('Syncing orders using URL:', fullUrl);
       
-      // Make the call to our API endpoint that handles the Shopify sync logic
-      const response = await fetch(fullUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ startDate, endDate }),
-        cache: 'no-store',
-      });
+      try {
+        // Make the call to our API endpoint that handles the Shopify sync logic
+        console.log('Initiating fetch request with method:', 'POST');
+        console.log('Request body:', JSON.stringify({ startDate, endDate }));
+        
+        const response = await fetch(fullUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ startDate, endDate }),
+          cache: 'no-store',
+          // Add longer timeout for Vercel environment
+          ...(isVercel ? { next: { revalidate: 0 } } : {}),
+        });
 
-      console.log('Response status:', response.status, response.statusText);
-      
-      if (!response.ok) {
-        // Try to get more details about the error
-        try {
-          const errorData = await response.json();
-          throw new Error(
-            errorData.message || errorData.error || 
-            `Failed to sync orders: ${response.status} ${response.statusText}`
-          );
-        } catch (parseError) {
-          console.error('Error parsing error response:', parseError);
-          throw new Error(`Failed to sync orders: ${response.status} ${response.statusText}`);
+        console.log('Response received - status:', response.status, response.statusText);
+        
+        if (!response.ok) {
+          // Try to get more details about the error
+          try {
+            const errorText = await response.text();
+            console.error('Error response body:', errorText);
+            
+            let errorData;
+            try {
+              errorData = JSON.parse(errorText);
+            } catch (jsonError) {
+              console.error('Response not in JSON format');
+              throw new Error(`Failed to sync orders: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`);
+            }
+            
+            throw new Error(
+              errorData.message || errorData.error || 
+              `Failed to sync orders: ${response.status} ${response.statusText}`
+            );
+          } catch (parseError) {
+            console.error('Error parsing error response:', parseError);
+            throw new Error(`Failed to sync orders: ${response.status} ${response.statusText}`);
+          }
         }
-      }
 
-      responseData = await response.json();
+        responseData = await response.json();
+      } catch (fetchError: unknown) {
+        console.error('Fetch operation failed:', fetchError);
+        
+        // For Vercel debugging, log more details
+        if (isVercel) {
+          console.error('Vercel environment detected, fetch error details:');
+          console.error('- Error name:', fetchError instanceof Error ? fetchError.name : 'Unknown');
+          console.error('- Error message:', fetchError instanceof Error ? fetchError.message : String(fetchError));
+          console.error('- Target URL:', fullUrl);
+          console.error('- Stack trace:', fetchError instanceof Error ? fetchError.stack : 'No stack trace');
+        }
+        
+        throw new Error(`Fetch operation failed: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
+      }
     }
     
     // Revalidate the orders page to show updated data
