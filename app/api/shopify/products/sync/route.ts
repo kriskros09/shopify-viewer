@@ -105,11 +105,10 @@ export async function POST() {
       
       if (existingProduct) {
         // Update existing product
-        const { data: updateData, error: updateError } = await supabaseAdmin
+        const { error: updateError } = await supabaseAdmin
           .from('products')
           .update(formattedProduct)
-          .eq('id', existingProduct.id)
-          .select();
+          .eq('id', existingProduct.id);
           
         if (updateError) {
           console.error('Error updating product:', updateError);

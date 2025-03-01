@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import { 
-  Save, 
-  User, 
+  Save,
   Store, 
   Bell, 
   Shield, 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { format, sub, parseISO } from 'date-fns';
+import { format, sub } from 'date-fns';
 import { Calendar, DollarSign, ShoppingBag, TrendingUp } from 'lucide-react';
 import { useFormatDate, useFormatPrice } from '@/lib/hooks/useFormatters';
 import { standardDateRanges } from '@/lib/mock/dateRanges';

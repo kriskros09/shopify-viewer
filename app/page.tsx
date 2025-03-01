@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import { 
   Package, 
@@ -8,7 +8,6 @@ import {
   BarChart, 
   RefreshCw,
   DollarSign,
-  Users,
   ShoppingBag,
   Clock,
   ArrowRight
@@ -43,9 +42,13 @@ const mockSalesSummary: SalesSummary = {
 const mockProductCount = 19;
 
 export default function Home() {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [recentSales, setRecentSales] = useState<SalesSummary | null>(mockSalesSummary);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [productCount, setProductCount] = useState<number>(mockProductCount);
+   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isLoading, setIsLoading] = useState(false);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [error, setError] = useState<string | null>(null);
 
   // Dashboard quick link cards

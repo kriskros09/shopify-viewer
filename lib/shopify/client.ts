@@ -45,6 +45,63 @@ async function shopifyGraphqlRequest<T>(query: string, variables = {}): Promise<
   }
 }
 
+type ShopifyProductNode = {
+  id: string;
+  title: string;
+  description: string;
+  handle: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  totalInventory: number;
+  variants: {
+    edges: Array<{
+      node: {
+        id: string;
+        title: string;
+        price: string;
+        sku: string;
+        inventoryQuantity: number;
+        weight: number;
+        weightUnit: string;
+      };
+    }>;
+  };
+  images: {
+    edges: Array<{
+      node: {
+        id: string;
+        url: string;
+        altText: string | null;
+        width: number;
+        height: number;
+      };
+    }>;
+  };
+  priceRange: {
+    minVariantPrice: {
+      amount: string;
+      currencyCode: string;
+    };
+    maxVariantPrice: {
+      amount: string;
+      currencyCode: string;
+    };
+  };
+};
+
+type ShopifyProductResponse = {
+  products: {
+    edges: Array<{
+      node: ShopifyProductNode;
+    }>;
+    pageInfo: {
+      hasNextPage: boolean;
+      endCursor: string | null;
+    };
+  };
+};
+
 /**
  * Fetches products from Shopify
  */
@@ -117,18 +174,6 @@ export async function fetchShopifyProducts(first = 50, after?: string): Promise<
     after,
   };
 
-  type ShopifyProductResponse = {
-    products: {
-      edges: Array<{
-        node: any;
-      }>;
-      pageInfo: {
-        hasNextPage: boolean;
-        endCursor: string | null;
-      };
-    };
-  };
-
   const data = await shopifyGraphqlRequest<ShopifyProductResponse>(query, variables);
 
   // Transform the response into our ShopifyProduct interface
@@ -142,19 +187,19 @@ export async function fetchShopifyProducts(first = 50, after?: string): Promise<
       createdAt: node.createdAt,
       updatedAt: node.updatedAt,
       totalInventory: node.totalInventory,
-      variants: node.variants.edges.map(({ node: variantNode }: any) => ({
+      variants: node.variants.edges.map(({ node: variantNode }: { node: ShopifyProductNode['variants']['edges'][0]['node'] }) => ({
         id: variantNode.id,
         title: variantNode.title,
         price: {
           amount: variantNode.price,
-          currencyCode: 'USD' // Default currency code since it's not available as a separate field
+          currencyCode: 'USD',
         },
         sku: variantNode.sku,
         inventoryQuantity: variantNode.inventoryQuantity,
         weight: variantNode.weight,
         weightUnit: variantNode.weightUnit,
       })),
-      images: node.images.edges.map(({ node: imageNode }: any) => ({
+      images: node.images.edges.map(({ node: imageNode }: { node: ShopifyProductNode['images']['edges'][0]['node'] }) => ({
         id: imageNode.id,
         url: imageNode.url,
         altText: imageNode.altText,
@@ -170,6 +215,106 @@ export async function fetchShopifyProducts(first = 50, after?: string): Promise<
     pageInfo: data.products.pageInfo,
   };
 }
+
+type ShopifyOrderLineItemNode = {
+  id: string;
+  title: string;
+  quantity: number;
+  variant: {
+    id: string;
+    title: string;
+    price: string;
+    sku?: string;
+    image?: {
+      url: string;
+    };
+    product: {
+      id: string;
+      title: string;
+    };
+  } | null;
+};
+
+type ShopifyOrderNode = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  processedAt: string;
+  totalPrice: string;
+  subtotalPrice: string;
+  totalTax: string;
+  totalShippingPrice: string;
+  displayFinancialStatus: string;
+  displayFulfillmentStatus: string;
+  gateway: string | null;
+  note: string | null;
+  tags: string[];
+  discountApplications: {
+    edges: Array<{
+      node: {
+        title: string;
+        value: {
+          amount: string;
+          currencyCode: string;
+        };
+        code: string | null;
+      };
+    }>;
+  };
+  shippingLines: {
+    edges: Array<{
+      node: {
+        title: string;
+        price: string;
+      };
+    }>;
+  };
+  customer: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string | null;
+  } | null;
+  lineItems: {
+    edges: Array<{
+      node: ShopifyOrderLineItemNode;
+    }>;
+  };
+  shippingAddress: {
+    address1: string;
+    address2: string | null;
+    city: string;
+    province: string;
+    zip: string;
+    country: string;
+    name: string;
+    phone: string | null;
+  } | null;
+  billingAddress: {
+    address1: string;
+    address2: string | null;
+    city: string;
+    province: string;
+    zip: string;
+    country: string;
+    name: string;
+    phone: string | null;
+  } | null;
+};
+
+type ShopifyOrderResponse = {
+  orders: {
+    edges: Array<{
+      node: ShopifyOrderNode;
+    }>;
+    pageInfo: {
+      hasNextPage: boolean;
+      endCursor: string | null;
+    };
+  };
+};
 
 /**
  * Fetches orders from Shopify within a given date range
@@ -264,18 +409,6 @@ export async function fetchShopifyOrders(
     query,
   };
 
-  type ShopifyOrderResponse = {
-    orders: {
-      edges: Array<{
-        node: any;
-      }>;
-      pageInfo: {
-        hasNextPage: boolean;
-        endCursor: string | null;
-      };
-    };
-  };
-
   const data = await shopifyGraphqlRequest<ShopifyOrderResponse>(gqlQuery, variables);
 
   // Transform the response into our ShopifyOrder interface
@@ -314,7 +447,7 @@ export async function fetchShopifyOrders(
         email: node.customer?.email || '',
         phone: node.customer?.phone || null,
       },
-      lineItems: node.lineItems.edges.map(({ node: lineItemNode }: any) => ({
+      lineItems: node.lineItems.edges.map(({ node: lineItemNode }: { node: ShopifyOrderLineItemNode }) => ({
         id: lineItemNode.id,
         title: lineItemNode.title,
         quantity: lineItemNode.quantity,

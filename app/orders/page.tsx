@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, Fragment, useRef } from 'react';
-import { Search, RefreshCw, ChevronLeft, ChevronRight, Calendar, ChevronDown, ChevronUp, Printer, ExternalLink, Package, Download } from 'lucide-react';
-import { format, sub, parseISO } from 'date-fns';
+import { useState, useEffect, Fragment } from 'react';
+import { Search, ChevronLeft, ChevronRight, Calendar, ChevronDown, ChevronUp, Printer, ExternalLink, Package, Download } from 'lucide-react';
+import { format, sub } from 'date-fns';
 import { useFormatDate, useFormatPrice } from '@/lib/hooks/useFormatters';
 import { orderDateRanges } from '@/lib/mock/dateRanges';
 import { getStatusBadgeClasses, getShortShopifyId } from '@/lib/mock/uiHelpers';
@@ -107,6 +107,7 @@ export default function OrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
   const [dateRangeError, setDateRangeError] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [noResults, setNoResults] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   
@@ -118,7 +119,6 @@ export default function OrdersPage() {
   const formatDateFn = useFormatDate();
   const formatPriceFn = useFormatPrice();
   
-  const tableBodyRef = useRef<HTMLTableSectionElement>(null);
   const { toast } = useToast();
   
   const fetchOrders = async (page = 1, search = '', start = startDate, end = endDate) => {
@@ -163,13 +163,14 @@ export default function OrdersPage() {
       setIsLoading(false);
     } catch (err) {
       setIsLoading(false);
-      setError('Failed to load orders');
+      setError(err instanceof Error ? err.message : 'Failed to load orders');
     }
   };
   
   useEffect(() => {
     // Fetch all orders by default (with empty date range)
     fetchOrders(pagination.page, searchQuery, '', '');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
   const handleSearch = (e: React.FormEvent) => {

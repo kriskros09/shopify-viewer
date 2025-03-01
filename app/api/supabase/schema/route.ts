@@ -12,7 +12,7 @@ interface SchemaResult {
 
 interface TableColumn {
   column_name: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 interface UpdateResult {
@@ -33,7 +33,7 @@ export async function GET() {
     const schema: SchemaResult = {};
     
     for (const table of tables) {
-      const { data, error } = await supabaseAdmin
+      const { error } = await supabaseAdmin
         .from(table)
         .select('*')
         .limit(1);

@@ -2,15 +2,17 @@
 
 import { useState } from 'react';
 import { format, sub } from 'date-fns';
-import { Calendar, RefreshCw } from 'lucide-react';
-import { SyncStatus, renderStatusIcon } from '@/lib/mock/uiHelpers';
+import { RefreshCw } from 'lucide-react';
+import { renderStatusIcon } from '@/lib/mock/uiHelpers';
 import { useProductSync, useOrderSync } from '@/lib/hooks/useSyncOperations';
 
 export default function SyncPage() {
   // Default to last 90 days for order sync
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [startDate, setStartDate] = useState(
     format(sub(new Date(), { days: 90 }), 'yyyy-MM-dd')
   );
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [endDate, setEndDate] = useState(
     format(new Date(), 'yyyy-MM-dd')
   );

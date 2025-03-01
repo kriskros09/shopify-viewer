@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { fetchShopifyOrders } from '../../../../../lib/shopify/client';
 import supabaseAdmin from '../../../../../lib/supabase/admin';
-import { ShopifyOrder, ShopifyDiscountApplication, ShopifyShippingLine } from '../../../../../types/shopify';
+import { ShopifyOrder } from '../../../../../types/shopify';
 import { 
   Order, 
   Customer, 
@@ -109,11 +109,10 @@ export async function POST(request: Request) {
       
       if (existingOrder) {
         // Update existing order
-        const { data: updateData, error: updateError } = await supabaseAdmin
+        const { error: updateError } = await supabaseAdmin
           .from('orders')
           .update(formattedOrder)
-          .eq('id', existingOrder.id)
-          .select();
+          .eq('id', existingOrder.id);
           
         if (updateError) {
           console.error('Error updating order:', updateError);
@@ -172,11 +171,10 @@ export async function POST(request: Request) {
         
         if (existingCustomer) {
           // Update existing customer
-          const { data: updateData, error: updateError } = await supabaseAdmin
+          const { error: updateError } = await supabaseAdmin
             .from('customers')
             .update(formattedCustomer)
-            .eq('id', existingCustomer.id)
-            .select();
+            .eq('id', existingCustomer.id);
             
           if (updateError) {
             console.error('Error updating customer:', updateError);
@@ -217,13 +215,17 @@ export async function POST(request: Request) {
             };
             
             // Check if shipping address already exists
-            const { data: existingAddress, error: addressCheckError } = await supabaseAdmin
+            const { data: existingAddress, error } = await supabaseAdmin
               .from('addresses')
               .select('id')
               .eq('order_id', orderId)
               .eq('address_type', 'shipping')
               .maybeSingle();
               
+            if (error) {
+              console.error('Error checking for existing shipping address:', error);
+            }
+            
             if (existingAddress) {
               // Update shipping address
               const { error: updateError } = await supabaseAdmin
@@ -264,13 +266,17 @@ export async function POST(request: Request) {
             };
             
             // Check if billing address already exists
-            const { data: existingAddress, error: addressCheckError } = await supabaseAdmin
+            const { data: existingAddress, error } = await supabaseAdmin
               .from('addresses')
               .select('id')
               .eq('order_id', orderId)
               .eq('address_type', 'billing')
               .maybeSingle();
               
+            if (error) {
+              console.error('Error checking for existing billing address:', error);
+            }
+            
             if (existingAddress) {
               // Update billing address
               const { error: updateError } = await supabaseAdmin
@@ -349,12 +355,16 @@ export async function POST(request: Request) {
           };
           
           // Check if line item already exists
-          const { data: existingLineItem, error: lineItemCheckError } = await supabaseAdmin
+          const { data: existingLineItem, error } = await supabaseAdmin
             .from('line_items')
             .select('id')
             .eq('shopify_id', lineItem.id)
             .maybeSingle();
             
+          if (error) {
+            console.error('Error checking for existing line item:', error);
+          }
+          
           if (existingLineItem) {
             // Update line item
             const { error: updateError } = await supabaseAdmin

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { Search, RefreshCw, ChevronLeft, ChevronRight, Image as ImageIcon, Download } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Image as ImageIcon, Download } from 'lucide-react';
 import { useFormatPriceRange } from '@/lib/hooks/useFormatters';
 import { getStatusBadgeClasses } from '@/lib/mock/uiHelpers';
 import { useToast } from '@/components/ui/use-toast';
@@ -75,12 +75,13 @@ export default function ProductsPage() {
       setIsLoading(false);
     } catch (err) {
       setIsLoading(false);
-      setError('Failed to load products');
+      setError(err instanceof Error ? err.message : 'Failed to load products');
     }
   };
   
   useEffect(() => {
     fetchProducts(pagination.page, searchQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   
   const handleSearch = (e: React.FormEvent) => {
