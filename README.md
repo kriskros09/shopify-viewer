@@ -93,7 +93,8 @@ yarn dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
 
-## Environment Variables
+<details>
+<summary>⚙️ Environment Variables (click to expand)</summary>
 
 The application uses environment variables from the `.env` file in the root directory:
 
@@ -127,7 +128,10 @@ The Server Actions connect directly to the Shopify Admin API using these environ
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Inter](https://fonts.google.com/specimen/Inter), a modern sans-serif font.
 
-## Date Filtering & Testing
+</details>
+
+<details>
+<summary>📅 Date Filtering & Testing (click to expand)</summary>
 
 ### Date Filtering Logic
 
@@ -151,7 +155,46 @@ To test the date filter:
 3. Verify the displayed orders match your selected dates
 4. Use "View All Orders" to reset filters
 
-## Shopify Data Synchronization
+### Testing Date Filters
+
+To test the date filtering functionality:
+
+1. **Setup Test Environment**
+   ```bash
+   # Start the development server
+   npm run dev
+   ```
+
+2. **Manual Testing**
+   - Navigate to the Orders page
+   - Use the date picker to select different date ranges
+   - Verify that the orders displayed match the expected date range
+   - Test edge cases such as:
+     - Selecting dates with no orders
+     - Selecting a single day
+     - Selecting a very wide date range
+
+3. **API Testing**
+   - Use the API directly to verify filtering:
+   ```bash
+   # Replace with your actual base URL and date parameters
+   curl "http://localhost:3000/api/supabase/orders?startDate=2023-01-01&endDate=2023-01-31"
+   ```
+
+4. **Testing Preset Date Ranges**
+   - Click the preset date range buttons ("Last 7 days", "Last 30 days", etc.)
+   - Verify that the correct date range is applied and the appropriate orders are displayed
+
+5. **View All Orders**
+   - Click the "View All Orders" button to clear date filters
+   - Verify that all orders are displayed regardless of date
+
+Note that if you need to filter by database sync date instead, this would require schema modifications and API changes.
+
+</details>
+
+<details>
+<summary>🔄 Shopify Data Synchronization (click to expand)</summary>
 
 The application provides functionality to synchronize products and orders from your Shopify store to the Supabase database.
 
@@ -195,41 +238,7 @@ To test the synchronization:
 3. For Orders, select a date range and click "Sync Orders"
 4. Check the updated listings to verify the data was imported correctly
 
-### Testing Date Filters
-
-To test the date filtering functionality:
-
-1. **Setup Test Environment**
-   ```bash
-   # Start the development server
-   npm run dev
-   ```
-
-2. **Manual Testing**
-   - Navigate to the Orders page
-   - Use the date picker to select different date ranges
-   - Verify that the orders displayed match the expected date range
-   - Test edge cases such as:
-     - Selecting dates with no orders
-     - Selecting a single day
-     - Selecting a very wide date range
-
-3. **API Testing**
-   - Use the API directly to verify filtering:
-   ```bash
-   # Replace with your actual base URL and date parameters
-   curl "http://localhost:3000/api/supabase/orders?startDate=2023-01-01&endDate=2023-01-31"
-   ```
-
-4. **Testing Preset Date Ranges**
-   - Click the preset date range buttons ("Last 7 days", "Last 30 days", etc.)
-   - Verify that the correct date range is applied and the appropriate orders are displayed
-
-5. **View All Orders**
-   - Click the "View All Orders" button to clear date filters
-   - Verify that all orders are displayed regardless of date
-
-Note that if you need to filter by database sync date instead, this would require schema modifications and API changes.
+</details>
 
 ## Learn More
 
