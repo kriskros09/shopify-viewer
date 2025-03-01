@@ -151,6 +151,50 @@ To test the date filter:
 3. Verify the displayed orders match your selected dates
 4. Use "View All Orders" to reset filters
 
+## Shopify Data Synchronization
+
+The application provides functionality to synchronize products and orders from your Shopify store to the Supabase database.
+
+### How Synchronization Works
+
+1. **Products Synchronization**
+   - Click the "Sync Products" button on the Products page
+   - The app connects to the Shopify GraphQL Admin API using your credentials
+   - Products, variants, and images are fetched from Shopify
+   - Data is then stored in the Supabase database with proper relationships
+   - Existing products are updated and new products are added
+
+2. **Orders Synchronization**
+   - Select a date range on the Orders page
+   - Click the "Sync Orders" button
+   - The app fetches orders from the specified date range from Shopify
+   - Orders and related data (line items, addresses, customers) are stored in Supabase
+   - The system maintains relationships between orders and products
+
+### Synchronization Flow
+
+```
+UI Request → API Route → Shopify GraphQL API → Transform Data → Supabase Database
+```
+
+Each synchronization operation provides real-time feedback through toast notifications, indicating whether the sync was successful or if any errors occurred.
+
+### Technical Implementation
+
+The synchronization is implemented through server-side API routes:
+- `/api/shopify/products/sync`: Syncs all products from the Shopify store
+- `/api/shopify/orders/sync`: Syncs orders from a specified date range
+
+These endpoints authenticate with Shopify using your store credentials from environment variables, then use the Shopify Admin API to fetch the data. The data is then processed and stored in the Supabase database using the Supabase client's `upsert` functionality to avoid duplicates.
+
+### Testing Synchronization
+
+To test the synchronization:
+1. Ensure your Shopify API credentials are correctly set in the environment variables
+2. Click the "Sync Products" button on the Products page
+3. For Orders, select a date range and click "Sync Orders"
+4. Check the updated listings to verify the data was imported correctly
+
 ### Testing Date Filters
 
 To test the date filtering functionality:
