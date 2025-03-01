@@ -197,7 +197,7 @@ export async function syncProductsAction(): Promise<SyncResponse> {
             try {
               errorData = JSON.parse(errorText);
             } catch (jsonError) {
-              console.error('Response not in JSON format');
+              console.error('Response not in JSON format', jsonError);
               throw new Error(`Failed to sync products: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`);
             }
             
@@ -324,7 +324,7 @@ export async function syncOrdersAction(startDate: string, endDate: string): Prom
             try {
               errorData = JSON.parse(errorText);
             } catch (jsonError) {
-              console.error('Response not in JSON format');
+              console.error('Response not in JSON format', jsonError);
               throw new Error(`Failed to sync orders: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`);
             }
             
