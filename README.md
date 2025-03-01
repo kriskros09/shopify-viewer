@@ -1,24 +1,191 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Shopify Viewer
+
+A Next.js application for viewing Shopify store data including orders, products, and analytics.
+
+## Project Structure
+
+- `/app` - Next.js App Router pages and components
+  - `/analytics` - Analytics dashboard
+  - `/orders` - Orders management
+  - `/products` - Products listing
+  - `/sync` - Data synchronization with Shopify
+  - `/api` - Server actions and API routes
+- `/lib` - Shared utilities and libraries
+  - `/hooks` - Custom React hooks
+  - `/mock` - Mock data and UI helper functions
+  - `/services` - API service layer abstractions
+  - `/providers` - React providers for context
+  - `/supabase` - Supabase client and database types
+
+
+## Mock Data
+
+Mock data is centralized in the `/lib/mock` directory to maintain consistency across the application. This includes:
+
+- Date range presets for filtering
+- Sample sales data for analytics
+- UI helper functions for rendering status badges and formatting
+
+See the [Mock Data README](/lib/mock/README.md) for more information.
+
+## Performance Optimizations
+
+This project implements several performance and scalability optimizations:
+
+- **React Query** - For efficient data fetching, caching, and state management
+- **API Layer Abstraction** - Centralized service layer for all API operations
+- **Server Actions** - Secure server-side API operations without exposing credentials
+- **Virtualized Lists** - React Virtual for efficiently rendering large datasets
+- **React 19** - Leveraging the new React compiler for automatic optimizations
+
+For detailed information, see [OPTIMIZATIONS.md](/OPTIMIZATIONS.md).
+
+## Future Improvements
+
+<details>
+<summary>📋 TODO List (click to expand)</summary>
+
+### Database and ORM
+- [ ] Implement a proper ORM (Prisma) for database operations
+- [ ] Create migration scripts for database schema changes
+- [ ] Add database schema visualization
+- [ ] Implement database seeding for development environments
+
+### Component Architecture
+- [ ] Refactor repeating UI patterns into reusable components
+- [ ] Create a component library for consistent UI elements
+- [ ] Add Storybook for component documentation
+- [ ] Implement component testing with React Testing Library
+
+### Performance Enhancements
+- [ ] Add virtualization for order/product tables for better pagination performance
+- [ ] Implement data prefetching for common navigation paths
+- [ ] Add bundle analysis and optimization
+- [ ] Optimize API response caching strategies
+
+### Developer Experience
+- [ ] Add comprehensive TypeScript documentation
+- [ ] Improve error handling and logging
+- [ ] Create CI/CD pipeline for automated testing
+- [ ] Add code quality checks with ESLint/Prettier
+
+</details>
 
 ## Getting Started
 
-First, run the development server:
+First, install dependencies:
+
+```bash
+npm install
+# or
+yarn install
+```
+
+The application is already configured with environment variables in the `.env` file at the root of the project.
+
+Run the development server:
 
 ```bash
 npm run dev
 # or
 yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The application uses environment variables from the `.env` file in the root directory:
+
+```
+# Shopify API Credentials
+SHOPIFY_SHOP_NAME="your-store.myshopify.com"
+SHOPIFY_API_KEY="your_api_key"
+SHOPIFY_API_SECRET="your_api_secret" 
+SHOPIFY_API_VERSION="2024-01"
+SHOPIFY_ACCESS_TOKEN="your_access_token"
+
+# Application URL
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+
+# Supabase Configuration
+NEXT_PUBLIC_SUPABASE_URL="your_supabase_url"
+NEXT_PUBLIC_SUPABASE_API_KEY="your_supabase_anon_key"
+
+# API Endpoints
+NEXT_PUBLIC_SUPABASE_ORDERS_API_ENDPOINT="/api/supabase/orders"
+NEXT_PUBLIC_SUPABASE_PRODUCTS_API_ENDPOINT="/api/supabase/products"
+```
+
+### Shopify API Configuration
+
+The Server Actions connect directly to the Shopify Admin API using these environment variables:
+
+- `SHOPIFY_SHOP_NAME`: Your Shopify store URL (e.g., "your-store.myshopify.com")
+- `SHOPIFY_API_VERSION`: The Shopify API version to use (e.g., "2024-01")
+- `SHOPIFY_ACCESS_TOKEN`: Your private Shopify Admin API access token
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Inter](https://fonts.google.com/specimen/Inter), a modern sans-serif font.
+
+## Date Filtering & Testing
+
+### Date Filtering Logic
+
+The application filters orders based on the **Shopify store's order processing date** (`processedAt`), not the date when orders were synced to our database.
+
+### Example Test Dates
+
+Here are a few example date ranges to test the filtering functionality:
+
+| Test Case | Date Range | Expected Result |
+|-----------|------------|-----------------|
+| Recent Orders | 2023-12-01 to 2023-12-31 | Orders from December 2023 |
+| Black Friday | 2023-11-24 to 2023-11-27 | Holiday shopping period orders |
+| All Orders | Leave dates empty, click "View All Orders" | Complete order history |
+
+> **Note**: The demo environment contains sample data primarily from 2023-2024.
+
+To test the date filter:
+1. Select a date range using the date pickers
+2. Click "Apply" or use a preset button like "Last 7 Days" 
+3. Verify the displayed orders match your selected dates
+4. Use "View All Orders" to reset filters
+
+### Testing Date Filters
+
+To test the date filtering functionality:
+
+1. **Setup Test Environment**
+   ```bash
+   # Start the development server
+   npm run dev
+   ```
+
+2. **Manual Testing**
+   - Navigate to the Orders page
+   - Use the date picker to select different date ranges
+   - Verify that the orders displayed match the expected date range
+   - Test edge cases such as:
+     - Selecting dates with no orders
+     - Selecting a single day
+     - Selecting a very wide date range
+
+3. **API Testing**
+   - Use the API directly to verify filtering:
+   ```bash
+   # Replace with your actual base URL and date parameters
+   curl "http://localhost:3000/api/supabase/orders?startDate=2023-01-01&endDate=2023-01-31"
+   ```
+
+4. **Testing Preset Date Ranges**
+   - Click the preset date range buttons ("Last 7 days", "Last 30 days", etc.)
+   - Verify that the correct date range is applied and the appropriate orders are displayed
+
+5. **View All Orders**
+   - Click the "View All Orders" button to clear date filters
+   - Verify that all orders are displayed regardless of date
+
+Note that if you need to filter by database sync date instead, this would require schema modifications and API changes.
 
 ## Learn More
 
