@@ -144,18 +144,27 @@ export async function syncProductsAction(): Promise<SyncResponse> {
       throw new Error('NEXT_PUBLIC_PRODUCTS_API_ENDPOINT is not defined');
     }
     
-    // Get the base URL for API calls
-    const baseUrl = getBaseUrl();
-    console.log('Using base URL:', baseUrl);
-    
     // Check if we're running on Vercel
     const isVercel = !!process.env.VERCEL;
+    
+    // Check if we're running on the client side (browser) vs server side
+    const isClientSide = typeof window !== 'undefined';
+    
+    // Get the base URL for API calls - but we may not use it depending on environment
+    const baseUrl = getBaseUrl();
+    console.log('Base URL available:', baseUrl);
+    console.log('Environment: ', {
+      isVercel,
+      isClientSide,
+      nodeEnv: process.env.NODE_ENV,
+      hasVercelUrl: !!process.env.VERCEL_URL
+    });
     
     // For server actions in Next.js, we should use direct handler imports rather than
     // making a new HTTP request when we're already on the server, EXCEPT on Vercel
     let responseData;
     
-    if (!isVercel && !baseUrl.includes('vercel') && syncEndpoint.startsWith('/api/')) {
+    if (!isVercel && !isClientSide && !baseUrl.includes('vercel') && syncEndpoint.startsWith('/api/')) {
       // We're running on the server locally and can directly import and call the handler
       console.log('Directly calling product sync handler (local server-side)');
       
@@ -166,9 +175,35 @@ export async function syncProductsAction(): Promise<SyncResponse> {
       const result = await POST();
       responseData = await result.json();
     } else {
-      // We're either running on Vercel, client-side, or have a specific baseUrl configured
-      // In these cases, we need to use fetch with absolute URLs
-      const fullUrl = isVercel ? syncEndpoint : `${baseUrl}${syncEndpoint}`;
+      // Handle client-side or Vercel server-side with proper URL construction
+      let fullUrl;
+      
+      if (isClientSide) {
+        // When in browser, use the current URL as base
+        const currentUrl = window.location.origin;
+        fullUrl = `${currentUrl}${syncEndpoint}`;
+        console.log('Client-side (browser) call using current URL:', fullUrl);
+      } else if (isVercel) {
+        // In Vercel server environment, construct absolute URL
+        if (process.env.VERCEL_URL) {
+          // Standard Vercel deployment
+          fullUrl = `https://${process.env.VERCEL_URL}${syncEndpoint}`;
+        } else if (process.env.VERCEL_BRANCH_URL) {
+          // Branch-specific preview deployment
+          fullUrl = `https://${process.env.VERCEL_BRANCH_URL}${syncEndpoint}`;
+        } else if (process.env.NEXT_PUBLIC_APP_URL) {
+          // Fallback to configured app URL
+          fullUrl = `${process.env.NEXT_PUBLIC_APP_URL}${syncEndpoint}`;
+        } else {
+          // Last resort fallback - this should ideally never happen
+          console.error('No Vercel URL environment variables found, using a placeholder that will likely fail');
+          fullUrl = `https://shopify-viewer.vercel.app${syncEndpoint}`;
+        }
+      } else {
+        // Local development server-side
+        fullUrl = `${baseUrl}${syncEndpoint}`;
+      }
+      
       console.log('Syncing products using URL:', fullUrl);
       
       try {
@@ -197,7 +232,7 @@ export async function syncProductsAction(): Promise<SyncResponse> {
             try {
               errorData = JSON.parse(errorText);
             } catch (jsonError) {
-              console.error('Response not in JSON format', jsonError);
+              console.error('Response not in JSON format');
               throw new Error(`Failed to sync products: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`);
             }
             
@@ -260,24 +295,33 @@ export async function syncOrdersAction(startDate: string, endDate: string): Prom
       throw new Error('NEXT_PUBLIC_ORDERS_API_ENDPOINT is not defined');
     }
     
-    // Get the base URL for API calls
-    const baseUrl = getBaseUrl();
-    console.log('Using base URL:', baseUrl);
-    
     // Check if we're running on Vercel
     const isVercel = !!process.env.VERCEL;
+    
+    // Check if we're running on the client side (browser) vs server side
+    const isClientSide = typeof window !== 'undefined';
+    
+    // Get the base URL for API calls - but we may not use it depending on environment
+    const baseUrl = getBaseUrl();
+    console.log('Base URL available:', baseUrl);
+    console.log('Environment: ', {
+      isVercel,
+      isClientSide,
+      nodeEnv: process.env.NODE_ENV,
+      hasVercelUrl: !!process.env.VERCEL_URL
+    });
     
     // Similar to products, use direct handler imports for server-side calls
     let responseData;
     
-    if (!isVercel && !baseUrl.includes('vercel') && syncEndpoint.startsWith('/api/')) {
+    if (!isVercel && !isClientSide && !baseUrl.includes('vercel') && syncEndpoint.startsWith('/api/')) {
       // We're running on the server locally and can directly import and call the handler
       console.log('Directly calling orders sync handler (local server-side)');
       
       // Dynamically import the handler to avoid circular dependencies
       const { POST } = await import('./shopify/orders/sync/route');
       
-      // Create a request object with the real startDate and endDate data
+      // Create a Request object with the real startDate and endDate data
       const requestBody = JSON.stringify({ startDate, endDate });
       const requestObject = new Request('http://localhost/api/shopify/orders/sync', {
         method: 'POST',
@@ -291,9 +335,35 @@ export async function syncOrdersAction(startDate: string, endDate: string): Prom
       const result = await POST(requestObject);
       responseData = await result.json();
     } else {
-      // We're either running on Vercel, client-side, or have a specific baseUrl configured
-      // In these cases, we need to use fetch with absolute URLs
-      const fullUrl = isVercel ? syncEndpoint : `${baseUrl}${syncEndpoint}`;
+      // Handle client-side or Vercel server-side with proper URL construction
+      let fullUrl;
+      
+      if (isClientSide) {
+        // When in browser, use the current URL as base
+        const currentUrl = window.location.origin;
+        fullUrl = `${currentUrl}${syncEndpoint}`;
+        console.log('Client-side (browser) call using current URL:', fullUrl);
+      } else if (isVercel) {
+        // In Vercel server environment, construct absolute URL
+        if (process.env.VERCEL_URL) {
+          // Standard Vercel deployment
+          fullUrl = `https://${process.env.VERCEL_URL}${syncEndpoint}`;
+        } else if (process.env.VERCEL_BRANCH_URL) {
+          // Branch-specific preview deployment
+          fullUrl = `https://${process.env.VERCEL_BRANCH_URL}${syncEndpoint}`;
+        } else if (process.env.NEXT_PUBLIC_APP_URL) {
+          // Fallback to configured app URL
+          fullUrl = `${process.env.NEXT_PUBLIC_APP_URL}${syncEndpoint}`;
+        } else {
+          // Last resort fallback - this should ideally never happen
+          console.error('No Vercel URL environment variables found, using a placeholder that will likely fail');
+          fullUrl = `https://shopify-viewer.vercel.app${syncEndpoint}`;
+        }
+      } else {
+        // Local development server-side
+        fullUrl = `${baseUrl}${syncEndpoint}`;
+      }
+      
       console.log('Syncing orders using URL:', fullUrl);
       
       try {
@@ -324,7 +394,7 @@ export async function syncOrdersAction(startDate: string, endDate: string): Prom
             try {
               errorData = JSON.parse(errorText);
             } catch (jsonError) {
-              console.error('Response not in JSON format', jsonError);
+              console.error('Response not in JSON format');
               throw new Error(`Failed to sync orders: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`);
             }
             
