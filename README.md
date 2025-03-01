@@ -26,7 +26,16 @@ Mock data is centralized in the `/lib/mock` directory to maintain consistency ac
 - Sample sales data for analytics
 - UI helper functions for rendering status badges and formatting
 
-See the [Mock Data README](/lib/mock/README.md) for more information.
+## Data Sources
+
+The application uses different data sources depending on the feature:
+
+- **Real Data** - Products and Orders pages display real data fetched from the Supabase database and synchronized with Shopify
+- **Mock Data** - The Analytics dashboard uses simulated data for demonstration purposes
+
+When testing the application:
+1. Products and Orders can be synchronized with your actual Shopify store data
+2. Analytics visualizations use predefined sample data that does not reflect your actual store performance
 
 ## Performance Optimizations
 
@@ -35,10 +44,7 @@ This project implements several performance and scalability optimizations:
 - **React Query** - For efficient data fetching, caching, and state management
 - **API Layer Abstraction** - Centralized service layer for all API operations
 - **Server Actions** - Secure server-side API operations without exposing credentials
-- **Virtualized Lists** - React Virtual for efficiently rendering large datasets
 - **React 19** - Leveraging the new React compiler for automatic optimizations
-
-For detailed information, see [OPTIMIZATIONS.md](/OPTIMIZATIONS.md).
 
 ## Future Improvements
 
