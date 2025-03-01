@@ -86,17 +86,23 @@ function getBaseUrl() {
     return process.env.NEXT_PUBLIC_APP_URL;
   }
   
-  // For development
-  if (process.env.NODE_ENV === 'development') {
-    return 'http://localhost:3000';
-  }
-  
-  // For production on Vercel
+  // For Vercel production deployment
   if (process.env.VERCEL_URL) {
+    // Always use HTTPS for Vercel deployments
     return `https://${process.env.VERCEL_URL}`;
   }
   
-  // Final fallbacks
+  // For Vercel preview deployments
+  if (process.env.VERCEL_BRANCH_URL) {
+    return `https://${process.env.VERCEL_BRANCH_URL}`;
+  }
+  
+  // For development - use an absolute URL for consistency
+  if (process.env.NODE_ENV === 'development') {
+    return process.env.NEXT_PUBLIC_DEV_URL || 'http://localhost:3000';
+  }
+  
+  // Final fallback - restore localhost default as it's needed for Vercel
   return process.env.SITE_URL || 'http://localhost:3000';
 }
 
@@ -114,8 +120,6 @@ export async function syncProductsAction(): Promise<SyncResponse> {
     }
     
     // From here, we'll just call the existing sync API endpoint
-    // This is similar to how it worked before, where the client called our API,
-    // and our API then called Shopify
     const syncEndpoint = process.env.NEXT_PUBLIC_PRODUCTS_API_ENDPOINT;
     
     if (!syncEndpoint) {
@@ -124,42 +128,66 @@ export async function syncProductsAction(): Promise<SyncResponse> {
     
     // Get the base URL for API calls
     const baseUrl = getBaseUrl();
-    console.log('Syncing products using endpoint:', `${baseUrl}${syncEndpoint}`);
+    console.log('Using base URL:', baseUrl);
     
-    // Make the call to our API endpoint that handles the Shopify sync logic
-    const response = await fetch(`${baseUrl}${syncEndpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      cache: 'no-store',
-    });
+    // Check if we're running on Vercel
+    const isVercel = !!process.env.VERCEL;
+    
+    // For server actions in Next.js, we should use direct handler imports rather than
+    // making a new HTTP request when we're already on the server, EXCEPT on Vercel
+    let responseData;
+    
+    if (!isVercel && !baseUrl.includes('vercel') && syncEndpoint.startsWith('/api/')) {
+      // We're running on the server locally and can directly import and call the handler
+      console.log('Directly calling product sync handler (local server-side)');
+      
+      // Dynamically import the handler to avoid circular dependencies
+      const { POST } = await import('./shopify/products/sync/route');
+      
+      // Call the handler directly - this will fetch real products from Shopify
+      const result = await POST();
+      responseData = await result.json();
+    } else {
+      // We're either running on Vercel, client-side, or have a specific baseUrl configured
+      // In these cases, we need to use fetch with absolute URLs
+      const fullUrl = `${baseUrl}${syncEndpoint}`;
+      console.log('Syncing products using full URL:', fullUrl);
+      
+      // Make the call to our API endpoint that handles the Shopify sync logic
+      const response = await fetch(fullUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+      });
 
-    console.log('Response status:', response.status, response.statusText);
-    
-    if (!response.ok) {
-      // Try to get more details about the error
-      try {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.message || errorData.error || 
-          `Failed to sync products: ${response.status} ${response.statusText}`
-        );
-      } catch (parseError) {
-        console.error('Error parsing error response:', parseError);
-        throw new Error(`Failed to sync products: ${response.status} ${response.statusText}`);
+      console.log('Response status:', response.status, response.statusText);
+      
+      if (!response.ok) {
+        // Try to get more details about the error
+        try {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.message || errorData.error || 
+            `Failed to sync products: ${response.status} ${response.statusText}`
+          );
+        } catch (parseError) {
+          console.error('Error parsing error response:', parseError);
+          throw new Error(`Failed to sync products: ${response.status} ${response.statusText}`);
+        }
       }
-    }
 
-    const data = await response.json();
+      responseData = await response.json();
+    }
     
     // Revalidate the products page to show updated data
     revalidatePath('/products');
     
     return {
-      success: data.success || true,
-      message: data.message || 'Products synced successfully',
-      count: data.count || 0,
+      success: responseData.success || true,
+      message: responseData.message || 'Products synced successfully',
+      count: responseData.count || 0,
     };
   } catch (error) {
     console.error('Error syncing products:', error);
@@ -187,43 +215,76 @@ export async function syncOrdersAction(startDate: string, endDate: string): Prom
     
     // Get the base URL for API calls
     const baseUrl = getBaseUrl();
-    console.log('Syncing orders using endpoint:', `${baseUrl}${syncEndpoint}`);
+    console.log('Using base URL:', baseUrl);
     
-    // Make the call to our API endpoint that handles the Shopify sync logic
-    const response = await fetch(`${baseUrl}${syncEndpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ startDate, endDate }),
-      cache: 'no-store',
-    });
+    // Check if we're running on Vercel
+    const isVercel = !!process.env.VERCEL;
+    
+    // Similar to products, use direct handler imports for server-side calls
+    let responseData;
+    
+    if (!isVercel && !baseUrl.includes('vercel') && syncEndpoint.startsWith('/api/')) {
+      // We're running on the server locally and can directly import and call the handler
+      console.log('Directly calling orders sync handler (local server-side)');
+      
+      // Dynamically import the handler to avoid circular dependencies
+      const { POST } = await import('./shopify/orders/sync/route');
+      
+      // Create a request object with the real startDate and endDate data
+      const requestBody = JSON.stringify({ startDate, endDate });
+      const requestObject = new Request('http://localhost/api/shopify/orders/sync', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: requestBody,
+      });
+      
+      // Call the handler directly with our request object containing the real data
+      const result = await POST(requestObject);
+      responseData = await result.json();
+    } else {
+      // We're either running on Vercel, client-side, or have a specific baseUrl configured
+      // In these cases, we need to use fetch with absolute URLs
+      const fullUrl = `${baseUrl}${syncEndpoint}`;
+      console.log('Syncing orders using full URL:', fullUrl);
+      
+      // Make the call to our API endpoint that handles the Shopify sync logic
+      const response = await fetch(fullUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ startDate, endDate }),
+        cache: 'no-store',
+      });
 
-    console.log('Response status:', response.status, response.statusText);
-    
-    if (!response.ok) {
-      // Try to get more details about the error
-      try {
-        const errorData = await response.json();
-        throw new Error(
-          errorData.message || errorData.error || 
-          `Failed to sync orders: ${response.status} ${response.statusText}`
-        );
-      } catch (parseError) {
-        console.error('Error parsing error response:', parseError);
-        throw new Error(`Failed to sync orders: ${response.status} ${response.statusText}`);
+      console.log('Response status:', response.status, response.statusText);
+      
+      if (!response.ok) {
+        // Try to get more details about the error
+        try {
+          const errorData = await response.json();
+          throw new Error(
+            errorData.message || errorData.error || 
+            `Failed to sync orders: ${response.status} ${response.statusText}`
+          );
+        } catch (parseError) {
+          console.error('Error parsing error response:', parseError);
+          throw new Error(`Failed to sync orders: ${response.status} ${response.statusText}`);
+        }
       }
-    }
 
-    const data = await response.json();
+      responseData = await response.json();
+    }
     
     // Revalidate the orders page to show updated data
     revalidatePath('/orders');
     
     return {
-      success: data.success || true,
-      message: data.message || 'Orders synced successfully',
-      count: data.count || 0,
+      success: responseData.success || true,
+      message: responseData.message || 'Orders synced successfully',
+      count: responseData.count || 0,
     };
   } catch (error) {
     console.error('Error syncing orders:', error);
