@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache';
 import { SyncResponse } from '@/lib/services/shopify';
 
-// Helper function to validate and get Shopify API endpoint
+/**
+ * Helper function to validate and get Shopify API endpoint
+ */
 function getShopifyApiEndpoint() {
   const shopName = process.env.SHOPIFY_SHOP_NAME;
   
@@ -15,17 +17,16 @@ function getShopifyApiEndpoint() {
   const cleanShopName = shopName.replace(/"/g, '').trim();
   
   // Ensure the shop name is in the correct format
-  // If it already contains 'myshopify.com', use it as is
-  // Otherwise, append '.myshopify.com'
   const formattedShopName = cleanShopName.includes('myshopify.com') 
     ? cleanShopName 
     : `${cleanShopName}.myshopify.com`;
   
-  // Simple format: https://store-name.myshopify.com
   return `https://${formattedShopName}`;
 }
 
-// Helper function to get Shopify access token
+/**
+ * Helper function to get Shopify access token
+ */
 function getShopifyAccessToken() {
   const token = process.env.SHOPIFY_ACCESS_TOKEN;
   if (!token) {
@@ -42,7 +43,7 @@ async function testShopifyConnection() {
   const apiEndpoint = getShopifyApiEndpoint();
   const accessToken = getShopifyAccessToken();
   
-  // Use the GraphQL endpoint as that's what was used before
+  // Use the GraphQL endpoint
   const url = `${apiEndpoint}/admin/api/2024-01/graphql.json`;
   console.log('Testing connection with:', url);
   
@@ -99,7 +100,6 @@ export async function getBaseUrl() {
     }
     
     // Fallback to a default production URL if needed
-    // This should be configured in your environment variables
     if (process.env.NEXT_PUBLIC_API_URL) {
       return process.env.NEXT_PUBLIC_API_URL;
     }
@@ -120,128 +120,184 @@ export async function getBaseUrl() {
 }
 
 /**
- * Server action to sync products from Shopify
- * Uses Next.js Server Actions for secure server-side execution
+ * Gets the environment information for API calls
  */
-export async function syncProductsAction(): Promise<SyncResponse> {
-  try {
-    // First, verify the API connection with a shop request
+function getEnvironmentInfo() {
+  const isVercel = !!process.env.VERCEL;
+  const isClientSide = typeof window !== 'undefined';
+  const nodeEnv = process.env.NODE_ENV;
+  const hasVercelUrl = !!process.env.VERCEL_URL;
+  
+  return {
+    isVercel,
+    isClientSide,
+    nodeEnv,
+    hasVercelUrl
+  };
+}
+
+/**
+ * Constructs the full URL for API calls based on environment
+ */
+async function constructApiUrl(endpoint: string) {
+  const { isVercel, isClientSide } = getEnvironmentInfo();
+  const baseUrl = await getBaseUrl();
+  
+  // Handle client-side or Vercel server-side with proper URL construction
+  if (isClientSide) {
+    // When in browser, use the current URL as base
+    const currentUrl = window.location.origin;
+    return `${currentUrl}${endpoint}`;
+  } 
+  
+  if (isVercel) {
+    // In Vercel server environment, construct absolute URL
+    if (process.env.VERCEL_URL) {
+      // Standard Vercel deployment
+      return `https://${process.env.VERCEL_URL}${endpoint}`;
+    } 
+    if (process.env.VERCEL_BRANCH_URL) {
+      // Branch-specific preview deployment
+      return `https://${process.env.VERCEL_BRANCH_URL}${endpoint}`;
+    } 
+    if (process.env.NEXT_PUBLIC_APP_URL) {
+      // Fallback to configured app URL
+      return `${process.env.NEXT_PUBLIC_APP_URL}${endpoint}`;
+    }
+    // Last resort fallback
+    console.error('No Vercel URL environment variables found, using a placeholder that will likely fail');
+    return `https://shopify-viewer.vercel.app${endpoint}`;
+  } 
+  
+  // Local development server-side
+  return `${baseUrl}${endpoint}`;
+}
+
+/**
+ * Handles API response and errors
+ */
+async function handleApiResponse(response: Response) {
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Error response body:', errorText);
+    
     try {
-      await testShopifyConnection();
-    } catch (error) {
-      throw new Error(`Shopify connection test failed: ${(error as Error).message}`);
+      const errorData = JSON.parse(errorText);
+      throw new Error(
+        errorData.message || errorData.error || 
+        `API call failed: ${response.status} ${response.statusText}`
+      );
+    } catch (jsonError) {
+      throw new Error(`API call failed: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`, { cause: jsonError });
+    }
+  }
+  
+  return await response.json();
+}
+
+/**
+ * Generic function to handle sync operations
+ */
+async function callShopifySync(
+  endpoint: string, 
+  requestData: Record<string, unknown> | null = null, 
+  pathToRevalidate: string
+): Promise<SyncResponse> {
+  try {
+    // Verify the endpoint exists
+    if (!endpoint) {
+      throw new Error(`API endpoint is not defined`);
     }
     
-    // From here, we'll just call the existing sync API endpoint
-    const syncEndpoint = process.env.NEXT_PUBLIC_PRODUCTS_API_ENDPOINT;
+    // First, verify the API connection with a shop request
+    await testShopifyConnection();
     
-    if (!syncEndpoint) {
-      throw new Error('NEXT_PUBLIC_PRODUCTS_API_ENDPOINT is not defined');
-    }
-    
-    // Check if we're running on Vercel
-    const isVercel = !!process.env.VERCEL;
-    
-    // Check if we're running on the client side (browser) vs server side
-    const isClientSide = typeof window !== 'undefined';
-    
-    // Get the base URL for API calls - but we may not use it depending on environment
+    const { isVercel, isClientSide } = getEnvironmentInfo();
     const baseUrl = await getBaseUrl();
-    console.log('Base URL available:', baseUrl);
-    console.log('Environment: ', {
-      isVercel,
-      isClientSide,
-      nodeEnv: process.env.NODE_ENV,
-      hasVercelUrl: !!process.env.VERCEL_URL
+    
+    console.log('Environment: ', { 
+      isVercel, 
+      isClientSide, 
+      nodeEnv: process.env.NODE_ENV, 
+      endpoint 
     });
     
-    // For server actions in Next.js, we should use direct handler imports rather than
-    // making a new HTTP request when we're already on the server, EXCEPT on Vercel
+    // Determine if we can use direct imports or need HTTP
     let responseData;
     
-    if (!isVercel && !isClientSide && !baseUrl.includes('vercel') && syncEndpoint.startsWith('/api/')) {
+    if (!isVercel && !isClientSide && !baseUrl.includes('vercel') && endpoint.startsWith('/api/')) {
       // We're running on the server locally and can directly import and call the handler
-      console.log('Directly calling product sync handler (local server-side)');
+      console.log('Directly calling sync handler (local server-side)');
       
-      // Dynamically import the handler to avoid circular dependencies
-      const { POST } = await import('./shopify/products/sync/route');
+      // Determine which API handler to import based on the endpoint
+      let handlerModule;
       
-      // Call the handler directly - this will fetch real products from Shopify
-      const result = await POST();
-      responseData = await result.json();
-    } else {
-      // Handle client-side or Vercel server-side with proper URL construction
-      let fullUrl;
-      
-      if (isClientSide) {
-        // When in browser, use the current URL as base
-        const currentUrl = window.location.origin;
-        fullUrl = `${currentUrl}${syncEndpoint}`;
-        console.log('Client-side (browser) call using current URL:', fullUrl);
-      } else if (isVercel) {
-        // In Vercel server environment, construct absolute URL
-        if (process.env.VERCEL_URL) {
-          // Standard Vercel deployment
-          fullUrl = `https://${process.env.VERCEL_URL}${syncEndpoint}`;
-        } else if (process.env.VERCEL_BRANCH_URL) {
-          // Branch-specific preview deployment
-          fullUrl = `https://${process.env.VERCEL_BRANCH_URL}${syncEndpoint}`;
-        } else if (process.env.NEXT_PUBLIC_APP_URL) {
-          // Fallback to configured app URL
-          fullUrl = `${process.env.NEXT_PUBLIC_APP_URL}${syncEndpoint}`;
-        } else {
-          // Last resort fallback - this should ideally never happen
-          console.error('No Vercel URL environment variables found, using a placeholder that will likely fail');
-          fullUrl = `https://shopify-viewer.vercel.app${syncEndpoint}`;
-        }
+      if (endpoint.includes('/products/')) {
+        handlerModule = await import('./shopify/products/sync/route');
+      } else if (endpoint.includes('/orders/')) {
+        handlerModule = await import('./shopify/orders/sync/route');
       } else {
-        // Local development server-side
-        fullUrl = `${baseUrl}${syncEndpoint}`;
+        throw new Error(`Unknown API endpoint: ${endpoint}`);
       }
       
-      console.log('Syncing products using URL:', fullUrl);
+      const { POST } = handlerModule;
+      
+      // Create a Request object with data if needed
+      let requestObject;
+      
+      if (requestData) {
+        requestObject = new Request(`http://localhost${endpoint}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestData),
+        });
+        
+        // Call the handler directly with our request object
+        const result = await POST(requestObject);
+        responseData = await result.json();
+      } else {
+        // Call the handler directly without request data
+        // Create an empty request to satisfy the function signature
+        const emptyRequest = new Request(`http://localhost${endpoint}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        
+        const result = await POST(emptyRequest);
+        responseData = await result.json();
+      }
+    } else {
+      // Get the full URL for the API call
+      const fullUrl = await constructApiUrl(endpoint);
+      console.log(`Making API call to: ${fullUrl}`);
       
       try {
-        // Make the call to our API endpoint that handles the Shopify sync logic
-        console.log('Initiating fetch request with method:', 'POST');
-        
-        const response = await fetch(fullUrl, {
+        // Build request options
+        const requestOptions: RequestInit = {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           cache: 'no-store',
-          // Add longer timeout for Vercel environment
-          ...(isVercel ? { next: { revalidate: 0 } } : {}),
-        });
-  
+          ...(isVercel ? { next: { revalidate: 0 } } : {})
+        };
+        
+        // Add body if we have request data
+        if (requestData) {
+          requestOptions.body = JSON.stringify(requestData);
+          console.log('Request body:', JSON.stringify(requestData));
+        }
+        
+        // Make the API call
+        const response = await fetch(fullUrl, requestOptions);
         console.log('Response received - status:', response.status, response.statusText);
         
-        if (!response.ok) {
-          // Try to get more details about the error
-          try {
-            const errorText = await response.text();
-            console.error('Error response body:', errorText);
-            
-            let errorData;
-            try {
-              errorData = JSON.parse(errorText);
-            } catch (jsonError) {
-              console.error('Response not in JSON format', jsonError);
-              throw new Error(`Failed to sync products: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`);
-            }
-            
-            throw new Error(
-              errorData.message || errorData.error || 
-              `Failed to sync products: ${response.status} ${response.statusText}`
-            );
-          } catch (parseError) {
-            console.error('Error parsing error response:', parseError);
-            throw new Error(`Failed to sync products: ${response.status} ${response.statusText}`);
-          }
-        }
-  
-        responseData = await response.json();
+        // Handle the response
+        responseData = await handleApiResponse(response);
       } catch (fetchError: unknown) {
         console.error('Fetch operation failed:', fetchError);
         
@@ -258,23 +314,32 @@ export async function syncProductsAction(): Promise<SyncResponse> {
       }
     }
     
-    // Revalidate the products page to show updated data
-    revalidatePath('/products');
+    // Revalidate the page to show updated data
+    revalidatePath(pathToRevalidate);
     
     return {
       success: responseData.success || true,
-      message: responseData.message || 'Products synced successfully',
+      message: responseData.message || 'Operation completed successfully',
       count: responseData.count || 0,
     };
   } catch (error) {
-    console.error('Error syncing products:', error);
+    console.error('Error in sync operation:', error);
     return {
       success: false,
-      message: 'Failed to sync products: ' + (error as Error).message,
+      message: 'Operation failed: ' + (error as Error).message,
       count: 0,
       error: (error as Error).message,
     };
   }
+}
+
+/**
+ * Server action to sync products from Shopify
+ * Uses Next.js Server Actions for secure server-side execution
+ */
+export async function syncProductsAction(): Promise<SyncResponse> {
+  const endpoint = process.env.NEXT_PUBLIC_PRODUCTS_API_ENDPOINT || '/api/shopify/products/sync';
+  return callShopifySync(endpoint, null, '/products');
 }
 
 /**
@@ -282,231 +347,31 @@ export async function syncProductsAction(): Promise<SyncResponse> {
  * Uses Next.js Server Actions for secure server-side execution
  */
 export async function syncOrdersAction(startDate: string, endDate: string): Promise<SyncResponse> {
-  try {
-    // Similar to products, we'll call the existing endpoint that was working before
-    const syncEndpoint = process.env.NEXT_PUBLIC_ORDERS_API_ENDPOINT;
-    
-    if (!syncEndpoint) {
-      throw new Error('NEXT_PUBLIC_ORDERS_API_ENDPOINT is not defined');
-    }
-    
-    // Check if we're running on Vercel
-    const isVercel = !!process.env.VERCEL;
-    
-    // Check if we're running on the client side (browser) vs server side
-    const isClientSide = typeof window !== 'undefined';
-    
-    // Get the base URL for API calls - but we may not use it depending on environment
-    const baseUrl = await getBaseUrl();
-    console.log('Base URL available:', baseUrl);
-    console.log('Environment: ', {
-      isVercel,
-      isClientSide,
-      nodeEnv: process.env.NODE_ENV,
-      hasVercelUrl: !!process.env.VERCEL_URL
-    });
-    
-    // Similar to products, use direct handler imports for server-side calls
-    let responseData;
-    
-    if (!isVercel && !isClientSide && !baseUrl.includes('vercel') && syncEndpoint.startsWith('/api/')) {
-      // We're running on the server locally and can directly import and call the handler
-      console.log('Directly calling orders sync handler (local server-side)');
-      
-      // Dynamically import the handler to avoid circular dependencies
-      const { POST } = await import('./shopify/orders/sync/route');
-      
-      // Create a Request object with the real startDate and endDate data
-      const requestBody = JSON.stringify({ startDate, endDate });
-      const requestObject = new Request('http://localhost/api/shopify/orders/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: requestBody,
-      });
-      
-      // Call the handler directly with our request object containing the real data
-      const result = await POST(requestObject);
-      responseData = await result.json();
-    } else {
-      // Handle client-side or Vercel server-side with proper URL construction
-      let fullUrl;
-      
-      if (isClientSide) {
-        // When in browser, use the current URL as base
-        const currentUrl = window.location.origin;
-        fullUrl = `${currentUrl}${syncEndpoint}`;
-        console.log('Client-side (browser) call using current URL:', fullUrl);
-      } else if (isVercel) {
-        // In Vercel server environment, construct absolute URL
-        if (process.env.VERCEL_URL) {
-          // Standard Vercel deployment
-          fullUrl = `https://${process.env.VERCEL_URL}${syncEndpoint}`;
-        } else if (process.env.VERCEL_BRANCH_URL) {
-          // Branch-specific preview deployment
-          fullUrl = `https://${process.env.VERCEL_BRANCH_URL}${syncEndpoint}`;
-        } else if (process.env.NEXT_PUBLIC_APP_URL) {
-          // Fallback to configured app URL
-          fullUrl = `${process.env.NEXT_PUBLIC_APP_URL}${syncEndpoint}`;
-        } else {
-          // Last resort fallback - this should ideally never happen
-          console.error('No Vercel URL environment variables found, using a placeholder that will likely fail');
-          fullUrl = `https://shopify-viewer.vercel.app${syncEndpoint}`;
-        }
-      } else {
-        // Local development server-side
-        fullUrl = `${baseUrl}${syncEndpoint}`;
-      }
-      
-      console.log('Syncing orders using URL:', fullUrl);
-      
-      try {
-        // Make the call to our API endpoint that handles the Shopify sync logic
-        console.log('Initiating fetch request with method:', 'POST');
-        console.log('Request body:', JSON.stringify({ startDate, endDate }));
-        
-        const response = await fetch(fullUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ startDate, endDate }),
-          cache: 'no-store',
-          // Add longer timeout for Vercel environment
-          ...(isVercel ? { next: { revalidate: 0 } } : {}),
-        });
-  
-        console.log('Response received - status:', response.status, response.statusText);
-        
-        if (!response.ok) {
-          // Try to get more details about the error
-          try {
-            const errorText = await response.text();
-            console.error('Error response body:', errorText);
-            
-            let errorData;
-            try {
-              errorData = JSON.parse(errorText);
-            } catch (jsonError) {
-              console.error('Response not in JSON format', jsonError);
-              throw new Error(`Failed to sync orders: ${response.status} ${response.statusText} - ${errorText.substring(0, 200)}`);
-            }
-            
-            throw new Error(
-              errorData.message || errorData.error || 
-              `Failed to sync orders: ${response.status} ${response.statusText}`
-            );
-          } catch (parseError) {
-            console.error('Error parsing error response:', parseError);
-            throw new Error(`Failed to sync orders: ${response.status} ${response.statusText}`);
-          }
-        }
-  
-        responseData = await response.json();
-      } catch (fetchError: unknown) {
-        console.error('Fetch operation failed:', fetchError);
-        
-        // For Vercel debugging, log more details
-        if (isVercel) {
-          console.error('Vercel environment detected, fetch error details:');
-          console.error('- Error name:', fetchError instanceof Error ? fetchError.name : 'Unknown');
-          console.error('- Error message:', fetchError instanceof Error ? fetchError.message : String(fetchError));
-          console.error('- Target URL:', fullUrl);
-          console.error('- Stack trace:', fetchError instanceof Error ? fetchError.stack : 'No stack trace');
-        }
-        
-        throw new Error(`Fetch operation failed: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
-      }
-    }
-    
-    // Revalidate the orders page to show updated data
-    revalidatePath('/orders');
-    
-    return {
-      success: responseData.success || true,
-      message: responseData.message || 'Orders synced successfully',
-      count: responseData.count || 0,
-    };
-  } catch (error) {
-    console.error('Error syncing orders:', error);
-    return {
-      success: false,
-      message: 'Failed to sync orders: ' + (error as Error).message,
-      count: 0,
-      error: (error as Error).message,
-    };
-  }
+  const endpoint = process.env.NEXT_PUBLIC_ORDERS_API_ENDPOINT || '/api/shopify/orders/sync';
+  return callShopifySync(endpoint, { startDate, endDate }, '/orders');
 }
 
 /**
  * Function to sync Shopify products
- * @returns {Promise<any>} The response from the API
+ * @deprecated Use syncProductsAction instead
  */
 export async function syncProducts() {
-  try {
-    const baseUrl = await getBaseUrl();
-    console.log(`Syncing products with base URL: ${baseUrl}`);
-    
-    const response = await fetch(`${baseUrl}/api/shopify/products/sync`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Failed to sync products: ${response.status} ${response.statusText}`, errorText);
-      throw new Error(`Failed to sync products: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error syncing products:', error);
-    throw error;
-  }
+  console.warn('syncProducts is deprecated. Use syncProductsAction instead.');
+  return syncProductsAction();
 }
 
 /**
  * Function to sync Shopify orders
  * @param {string} startDate - Optional start date for order sync (YYYY-MM-DD)
  * @param {string} endDate - Optional end date for order sync (YYYY-MM-DD)
- * @returns {Promise<any>} The response from the API
+ * @deprecated Use syncOrdersAction instead
  */
 export async function syncOrders(startDate?: string, endDate?: string) {
-  try {
-    const baseUrl = await getBaseUrl();
-    console.log(`Syncing orders with base URL: ${baseUrl}`, { startDate, endDate });
-    
-    // Construct URL with optional date parameters
-    let url = `${baseUrl}/api/shopify/orders/sync`;
-    
-    // Add date range parameters if provided
-    const params = new URLSearchParams();
-    if (startDate) params.append('startDate', startDate);
-    if (endDate) params.append('endDate', endDate);
-    
-    if (params.toString()) {
-      url += `?${params.toString()}`;
-    }
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Failed to sync orders: ${response.status} ${response.statusText}`, errorText);
-      throw new Error(`Failed to sync orders: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-    
-    return await response.json();
-  } catch (error) {
-    console.error('Error syncing orders:', error);
-    throw error;
+  console.warn('syncOrders is deprecated. Use syncOrdersAction instead.');
+  if (startDate && endDate) {
+    return syncOrdersAction(startDate, endDate);
   }
+  
+  // If dates are missing, call with empty strings to let the backend use defaults
+  return syncOrdersAction(startDate || '', endDate || '');
 } 
