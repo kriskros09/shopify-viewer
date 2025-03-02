@@ -193,13 +193,21 @@ export default function OrdersPage() {
       return;
     }
     
+    // Adjust the end date to include the full day in UTC
+    // This ensures we capture all orders on the end date regardless of timezone
+    const adjustedEndDate = new Date(endDate);
+    adjustedEndDate.setDate(adjustedEndDate.getDate() + 1); // Add one day to include the full end date
+    const formattedEndDate = adjustedEndDate.toISOString().split('T')[0];
+    
     toast({
       title: "Date filter applied",
-      description: `Showing orders from ${startDate} to ${endDate}`,
+      description: `Showing orders from ${startDate} to ${endDate} (inclusive). Orders are stored in UTC timezone, so some orders may appear on different dates than expected due to timezone differences.`,
       variant: "success",
+      duration: 6000, // Show for 6 seconds to give users time to read
     });
     
-    fetchOrders(1, searchQuery, startDate, endDate);
+    // Use the adjusted end date for the API query
+    fetchOrders(1, searchQuery, startDate, formattedEndDate);
   };
   
   // Toggle row expansion
@@ -233,10 +241,14 @@ export default function OrdersPage() {
       start.setHours(0, 0, 0, 0);
     }
     
-    // Format dates in a timezone-safe way
-    // ISO format (YYYY-MM-DD) ensures consistent date handling between client and server
+    // Format dates in a timezone-safe way for display
     const startFormatted = start.toISOString().split('T')[0];
     const endFormatted = end.toISOString().split('T')[0];
+    
+    // When sending to API, adjust the end date to include the entire day in any timezone
+    const apiEndDate = new Date(end);
+    apiEndDate.setDate(apiEndDate.getDate() + 1);
+    const apiEndFormatted = apiEndDate.toISOString().split('T')[0];
     
     setStartDate(startFormatted);
     setEndDate(endFormatted);
@@ -244,13 +256,14 @@ export default function OrdersPage() {
     toast({
       title: "Date range applied",
       description: days === 'ytd' 
-        ? `Showing orders for year to date (${startFormatted} to ${endFormatted})`
-        : `Showing orders for last ${days} days (${startFormatted} to ${endFormatted})`,
+        ? `Showing orders for year to date (${startFormatted} to ${endFormatted}). Note: Orders are stored in UTC timezone, which may cause time differences at day boundaries.`
+        : `Showing orders for last ${days} days (${startFormatted} to ${endFormatted}). Note: Orders are stored in UTC timezone, which may cause time differences at day boundaries.`,
       variant: "success",
+      duration: 6000, // Show for 6 seconds to give users time to read
     });
     
-    // Fetch orders with the new date range
-    fetchOrders(1, searchQuery, startFormatted, endFormatted);
+    // Fetch orders with the new date range, using the adjusted end date for API
+    fetchOrders(1, searchQuery, startFormatted, apiEndFormatted);
   };
   
   // Count total items in order
