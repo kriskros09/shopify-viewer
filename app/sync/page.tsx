@@ -89,8 +89,8 @@ export default function SyncPage() {
               
               <button
                 onClick={() => syncOrders({ startDate, endDate })}
-                // disabled={ordersLoading}
-                disabled={true}
+                disabled={ordersLoading}
+                // disabled={true}
                 className={`px-4 py-2 text-white rounded-lg ${
                   ordersLoading
                     ? 'bg-blue-400 cursor-not-allowed'

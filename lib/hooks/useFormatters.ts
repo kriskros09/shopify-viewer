@@ -1,18 +1,49 @@
-import { format, parseISO } from 'date-fns';
+import { parseISO } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 
 /**
  * Hook for formatting dates consistently across the application
  */
 export function useFormatDate() {
   /**
-   * Format an ISO date string into a human-readable format
+   * Format an ISO date string into a human-readable format with timezone awareness
    * @param dateString ISO date string to format
    * @param formatString Optional format string (defaults to 'MMM dd, yyyy • h:mm a')
+   * @param showTimeZone Whether to show the timezone (defaults to false)
    * @returns Formatted date string
    */
-  const formatDate = (dateString: string, formatString: string = 'MMM dd, yyyy • h:mm a') => {
+  const formatDate = (
+    dateString: string, 
+    formatString: string = 'MMM dd, yyyy • h:mm a',
+    showTimeZone: boolean = false
+  ) => {
     if (!dateString) return '';
-    return format(parseISO(dateString), formatString);
+    
+    try {
+      // Parse the ISO date string
+      const date = parseISO(dateString);
+      
+      // Get the user's local timezone
+      const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      
+      // Get timezone abbreviation 
+      const tzAbbr = new Intl.DateTimeFormat('en', { 
+        timeZoneName: 'short',
+        timeZone
+      }).formatToParts(date).find(part => part.type === 'timeZoneName')?.value || '';
+      
+      // Format with timezone if requested
+      if (showTimeZone) {
+        // Add timezone label to the format string
+        return formatInTimeZone(date, timeZone, formatString) + (tzAbbr ? ` (${tzAbbr})` : '');
+      }
+      
+      // Format in the user's local timezone without displaying it
+      return formatInTimeZone(date, timeZone, formatString);
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return dateString; // Return the original string as fallback
+    }
   };
 
   return formatDate;

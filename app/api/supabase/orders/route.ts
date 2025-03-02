@@ -125,18 +125,28 @@ export async function GET(request: Request) {
     // Add date range if provided
     if (startDate && endDate) {
       // Ensure we get the full day ranges
-      // Add time component to endDate to make it inclusive of the whole day
-      const fullEndDate = `${endDate}T23:59:59`;
-      console.log('Using date range:', { startDate, fullEndDate });
-      query = query.gte('processed_at', startDate).lte('processed_at', fullEndDate);
+      // Create UTC date objects from the local date strings and ensure proper day boundaries
+      // This handles the timezone offset properly by ensuring we cover the full day in UTC
+      const utcStartDate = new Date(`${startDate}T00:00:00Z`).toISOString().split('T')[0];
+      const utcEndDateObj = new Date(`${endDate}T23:59:59Z`);
+      // Add a day to ensure we capture all records for the end date in any timezone
+      utcEndDateObj.setDate(utcEndDateObj.getDate() + 1);
+      const fullEndDate = utcEndDateObj.toISOString(); 
+      
+      console.log('Using UTC date range:', { utcStartDate, fullEndDate });
+      query = query.gte('processed_at', utcStartDate).lt('processed_at', fullEndDate);
     } else if (startDate) {
-      console.log('Using start date only:', startDate);
-      query = query.gte('processed_at', startDate);
+      const utcStartDate = new Date(`${startDate}T00:00:00Z`).toISOString().split('T')[0];
+      console.log('Using UTC start date only:', utcStartDate);
+      query = query.gte('processed_at', utcStartDate);
     } else if (endDate) {
-      // Add time component to endDate to make it inclusive of the whole day
-      const fullEndDate = `${endDate}T23:59:59`;
-      console.log('Using end date only:', fullEndDate);
-      query = query.lte('processed_at', fullEndDate);
+      // Add a day to make sure we get the entire end date in any timezone
+      const utcEndDateObj = new Date(`${endDate}T23:59:59Z`);
+      utcEndDateObj.setDate(utcEndDateObj.getDate() + 1);
+      const fullEndDate = utcEndDateObj.toISOString();
+      
+      console.log('Using UTC end date only:', fullEndDate);
+      query = query.lt('processed_at', fullEndDate);
     }
     
     // Add sorting

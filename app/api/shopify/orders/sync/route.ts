@@ -12,21 +12,65 @@ import {
   safeDate 
 } from '../../../../../lib/supabase/database-types';
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const { startDate, endDate } = await request.json();
+    // Try to get parameters from URL query string first
+    const url = new URL(req.url);
+    const searchParams = url.searchParams;
     
-    if (!startDate || !endDate) {
-      return NextResponse.json(
-        { success: false, message: 'startDate and endDate are required' },
-        { status: 400 }
-      );
+    let startDateParam = searchParams.get('startDate');
+    let endDateParam = searchParams.get('endDate');
+    
+    // If not in query string, try to get from request body
+    if (!startDateParam || !endDateParam) {
+      try {
+        const body = await req.json();
+        startDateParam = body.startDate || startDateParam;
+        endDateParam = body.endDate || endDateParam;
+      } catch (error) {
+        // If request body is empty or cannot be parsed, continue with URL parameters only
+        console.log('No valid request body found, using URL parameters only, error:', error);
+      }
     }
     
-    console.log(`Starting order sync process for period: ${startDate} to ${endDate}`);
+    // Format dates for Shopify API query
+    let dateQuery = '';
     
-    // Query for orders within the date range
-    const query = `processed_at:>=${startDate} processed_at:<=${endDate}`;
+    if (startDateParam && endDateParam) {
+      // Create date objects for timezone handling
+      const startDate = new Date(startDateParam);
+      const endDate = new Date(endDateParam);
+      
+      // Adjust end date to be inclusive (end of day)
+      endDate.setHours(23, 59, 59, 999);
+      
+      // Format for Shopify GraphQL: ISO 8601 format
+      const startIso = startDate.toISOString();
+      const endIso = endDate.toISOString();
+      
+      console.log(`Filtering orders between ${startIso} and ${endIso}`);
+      dateQuery = `processed_at:>=${startIso} processed_at:<=${endIso}`;
+    } else {
+      // If no date parameters provided, default to last 30 days
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(endDate.getDate() - 30);
+      
+      const startIso = startDate.toISOString();
+      const endIso = endDate.toISOString();
+      
+      console.log(`No date range provided. Defaulting to last 30 days: ${startIso} to ${endIso}`);
+      dateQuery = `processed_at:>=${startIso} processed_at:<=${endIso}`;
+      
+      // Update the parameters for later use
+      startDateParam = startDate.toISOString().split('T')[0];
+      endDateParam = endDate.toISOString().split('T')[0];
+    }
+    
+    // Check if we are filtering by date
+    const query = dateQuery ? `query:"${dateQuery}"` : '';
+    
+    console.log(`Starting order sync process for period: ${startDateParam} to ${endDateParam}`);
     
     let allOrders: ShopifyOrder[] = [];
     let hasNextPage = true;
@@ -393,8 +437,8 @@ export async function POST(request: Request) {
     const { data: finalCountData, error: finalCountError } = await supabaseAdmin
       .from('orders')
       .select('id')
-      .gte('processed_at', startDate)
-      .lte('processed_at', endDate);
+      .gte('processed_at', startDateParam)
+      .lte('processed_at', endDateParam);
       
     const finalCount = finalCountError ? 'Error counting' : finalCountData?.length || 0;
     
@@ -406,7 +450,7 @@ export async function POST(request: Request) {
       count: allOrders.length,
       syncedCount: syncedCount,
       databaseCount: finalCount,
-      period: { startDate, endDate },
+      period: { startDate: startDateParam, endDate: endDateParam },
     });
     
   } catch (error) {

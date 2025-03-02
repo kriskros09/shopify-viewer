@@ -2,10 +2,9 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { Search, ChevronLeft, ChevronRight, Image as ImageIcon, Download } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Image as ImageIcon } from 'lucide-react';
 import { useFormatPriceRange } from '@/lib/hooks/useFormatters';
 import { getStatusBadgeClasses } from '@/lib/mock/uiHelpers';
-import { useToast } from '@/components/ui/use-toast';
 
 interface Product {
   id: string;
@@ -52,11 +51,11 @@ export default function ProductsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isSyncing, setIsSyncing] = useState(false);
   
   const tableBodyRef = useRef<HTMLTableSectionElement>(null);
   const formatPriceRangeFn = useFormatPriceRange();
-  const { toast } = useToast();
   
   const fetchProducts = async (page = 1, search = '') => {
     try {
@@ -93,46 +92,46 @@ export default function ProductsPage() {
     fetchProducts(newPage, searchQuery);
   };
   
-  const syncProducts = async () => {
-    try {
-      setIsSyncing(true);
-      toast({
-        title: "Syncing products",
-        description: "Starting product sync with Shopify...",
-      });
+  // const syncProducts = async () => {
+  //   try {
+  //     setIsSyncing(true);
+  //     toast({
+  //       title: "Syncing products",
+  //       description: "Starting product sync with Shopify...",
+  //     });
       
-      const response = await fetch('/api/shopify/products/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
+  //     const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_PRODUCTS_API_ENDPOINT}`, {
+  //       method: 'POST',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       }
+  //     });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to sync products');
-      }
+  //     if (!response.ok) {
+  //       const errorData = await response.json();
+  //       throw new Error(errorData.message || 'Failed to sync products');
+  //     }
       
-      const result = await response.json();
+  //     const result = await response.json();
       
-      toast({
-        title: "Sync complete",
-        description: `Successfully synced ${result.syncedCount || 'all'} products from Shopify.`,
-        variant: "success",
-      });
+  //     toast({
+  //       title: "Sync complete",
+  //       description: `Successfully synced ${result.syncedCount || 'all'} products from Shopify.`,
+  //       variant: "success",
+  //     });
       
-      // Refresh product list
-      fetchProducts(pagination.page, searchQuery);
-    } catch (err) {
-      toast({
-        title: "Sync failed",
-        description: err instanceof Error ? err.message : 'Failed to sync products from Shopify',
-        variant: "destructive",
-      });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
+  //     // Refresh product list
+  //     fetchProducts(pagination.page, searchQuery);
+  //   } catch (err) {
+  //     toast({
+  //       title: "Sync failed",
+  //       description: err instanceof Error ? err.message : 'Failed to sync products from Shopify',
+  //       variant: "destructive",
+  //     });
+  //   } finally {
+  //     setIsSyncing(false);
+  //   }
+  // };
   
   if (error) {
     return (
@@ -176,7 +175,8 @@ export default function ProductsPage() {
             </button>
           </form>
           
-          <button
+          {/* TODO: Uncomment this when we have a way to sync products from Shopify */}
+          {/* <button
             onClick={syncProducts}
             disabled={isSyncing}
             className={`ml-2 px-4 py-2 flex items-center space-x-2 ${
@@ -187,7 +187,7 @@ export default function ProductsPage() {
           >
             <Download className="h-4 w-4 mr-1" />
             <span>{isSyncing ? 'Syncing...' : 'Sync Products'}</span>
-          </button>
+          </button> */}
           
         </div>
       </div>

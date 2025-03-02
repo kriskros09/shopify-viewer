@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect, Fragment } from 'react';
-import { Search, ChevronLeft, ChevronRight, Calendar, ChevronDown, ChevronUp, Printer, ExternalLink, Package, Download } from 'lucide-react';
-import { format, sub } from 'date-fns';
+import { Search, ChevronLeft, ChevronRight, Calendar, ChevronDown, ChevronUp, Printer, ExternalLink, Package } from 'lucide-react';
 import { useFormatDate, useFormatPrice } from '@/lib/hooks/useFormatters';
 import { orderDateRanges } from '@/lib/mock/dateRanges';
 import { getStatusBadgeClasses, getShortShopifyId } from '@/lib/mock/uiHelpers';
@@ -109,6 +108,7 @@ export default function OrdersPage() {
   const [dateRangeError, setDateRangeError] = useState<string | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [noResults, setNoResults] = useState(false);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [isSyncing, setIsSyncing] = useState(false);
   
   // Date filters - set default to empty to show all orders by default
@@ -123,24 +123,26 @@ export default function OrdersPage() {
   
   const fetchOrders = async (page = 1, search = '', start = startDate, end = endDate) => {
     try {
-      // Fix the date by ensuring we're getting the full days (beginning to end)
-      // startDate should be at 00:00:00, endDate should be at 23:59:59
-      const formattedStart = start;
-      const formattedEnd = end;
-      
       setIsLoading(true);
       
       // Build URL with proper handling of empty date ranges
-      let url = `${process.env.NEXT_PUBLIC_SUPABASE_ORDERS_API_ENDPOINT || ''}?page=${page}&limit=${pagination.limit}&search=${search}`;
+      let url = `${process.env.NEXT_PUBLIC_SUPABASE_ORDERS_API_ENDPOINT || ''}?page=${page}&limit=${pagination.limit}`;
+      
+      // Add search parameter if provided
+      if (search) {
+        url += `&search=${encodeURIComponent(search)}`;
+      }
       
       // Only add date parameters if they're provided
-      if (formattedStart) {
-        url += `&startDate=${formattedStart}`;
+      if (start) {
+        url += `&startDate=${encodeURIComponent(start)}`;
       }
       
-      if (formattedEnd) {
-        url += `&endDate=${formattedEnd}`;
+      if (end) {
+        url += `&endDate=${encodeURIComponent(end)}`;
       }
+      
+      console.log(`Fetching orders with URL: ${url}`);
       
       const response = await fetch(url);
       
@@ -157,7 +159,6 @@ export default function OrdersPage() {
       }
       
       // Ensure we're using the correct pagination data from the server
-      
       setOrders(data.orders);
       setPagination(data.pagination);
       setIsLoading(false);
@@ -210,32 +211,46 @@ export default function OrdersPage() {
     }));
   };
   
-  const handleDateRangeSelect = (days: number | string) => {
+  const handleDateRangeSelect = (days: number | 'ytd') => {
+    setDateRangeError('');
+    
+    // Get the current date and time (end of the range)
     const end = new Date();
-    let start;
+    // Set to end of day (23:59:59.999)
+    end.setHours(23, 59, 59, 999);
+    
+    let start: Date;
     
     if (days === 'ytd') {
-      start = new Date(end.getFullYear(), 0, 1); // January 1st of current year
+      // Year to date - start from January 1st of current year
+      const currentYear = end.getFullYear();
+      start = new Date(currentYear, 0, 1);
     } else {
-      start = sub(end, { days: days as number });
+      // Calculate start date by subtracting the specified number of days
+      start = new Date(end);
+      start.setDate(end.getDate() - days);
+      // Set to beginning of day (00:00:00.000)
+      start.setHours(0, 0, 0, 0);
     }
     
-    const formattedStart = format(start, 'yyyy-MM-dd');
-    const formattedEnd = format(end, 'yyyy-MM-dd');
+    // Format dates in a timezone-safe way
+    // ISO format (YYYY-MM-DD) ensures consistent date handling between client and server
+    const startFormatted = start.toISOString().split('T')[0];
+    const endFormatted = end.toISOString().split('T')[0];
     
-    setStartDate(formattedStart);
-    setEndDate(formattedEnd);
+    setStartDate(startFormatted);
+    setEndDate(endFormatted);
     
     toast({
       title: "Date range applied",
       description: days === 'ytd' 
-        ? `Showing orders for year to date (${formattedStart} to ${formattedEnd})`
-        : `Showing orders for last ${days} days (${formattedStart} to ${formattedEnd})`,
+        ? `Showing orders for year to date (${startFormatted} to ${endFormatted})`
+        : `Showing orders for last ${days} days (${startFormatted} to ${endFormatted})`,
       variant: "success",
     });
     
     // Fetch orders with the new date range
-    fetchOrders(1, searchQuery, formattedStart, formattedEnd);
+    fetchOrders(1, searchQuery, startFormatted, endFormatted);
   };
   
   // Count total items in order
@@ -244,70 +259,75 @@ export default function OrdersPage() {
   };
   
   const clearAllFilters = () => {
-    // Clear all filters and fetch all orders
     setSearchQuery('');
     setStartDate('');
     setEndDate('');
     setDateRangeError(null);
     
-    toast({
-      title: "Showing all orders",
-      description: "Displaying all orders without date filtering",
-      variant: "success",
-    });
+    // Reset to first page
+    const resetPage = 1;
     
-    fetchOrders(1, '', '', '');
+    // Explicitly call fetchOrders with empty parameters
+    fetchOrders(resetPage, '', '', '');
+    
+    toast({
+      title: "Filters cleared",
+      description: "All filters have been cleared.",
+    });
   };
   
-  const syncOrders = async () => {
-    if (!startDate || !endDate) {
-      setDateRangeError('Please select a date range to sync orders');
-      return;
-    }
+  // TODO: Uncomment this when we have a way to sync orders from Shopify
+  // const syncOrders = async () => {
+  //   if (!startDate || !endDate) {
+  //     setDateRangeError('Please select a date range to sync orders');
+  //     return;
+  //   }
 
-    try {
-      setIsSyncing(true);
-      toast({
-        title: "Syncing orders",
-        description: `Starting order sync with Shopify for period ${startDate} to ${endDate}...`,
-      });
+  //   try {
+  //     setIsSyncing(true);
+  //     toast({
+  //       title: "Syncing orders",
+  //       description: `Starting order sync with Shopify for period ${startDate} to ${endDate}...`,
+  //     });
       
-      const response = await fetch('/api/shopify/orders/sync', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          startDate,
-          endDate
-        })
-      });
+  //     const response = await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_ORDERS_API_ENDPOINT}`, {
+  //       method: 'POST',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: JSON.stringify({
+  //         startDate,
+  //         endDate
+  //       })
+  //     });
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to sync orders');
-      }
+  //     if (!response.ok) {
+  //       const errorData = await response.json();
+  //       throw new Error(errorData.message || 'Failed to sync orders');
+  //     }
       
-      const result = await response.json();
+  //     const result = await response.json();
       
-      toast({
-        title: "Sync complete",
-        description: `Successfully synced ${result.syncedCount || 'all'} orders from Shopify.`,
-        variant: "success",
-      });
+  //     toast({
+  //       title: "Sync complete",
+  //       description: `Successfully synced ${result.syncedCount || 'all'} orders from Shopify.`,
+  //       variant: "success",
+  //     });
       
-      // Refresh order list
-      fetchOrders(pagination.page, searchQuery, startDate, endDate);
-    } catch (err) {
-      toast({
-        title: "Sync failed",
-        description: err instanceof Error ? err.message : 'Failed to sync orders from Shopify',
-        variant: "destructive",
-      });
-    } finally {
-      setIsSyncing(false);
-    }
-  };
+  //     // Refresh order list
+  //     fetchOrders(pagination.page, searchQuery, startDate, endDate);
+  //   } catch (err) {
+  //     toast({
+  //       title: "Sync failed",
+  //       description: err instanceof Error ? err.message : 'Failed to sync orders from Shopify',
+  //       variant: "destructive",
+  //     });
+  //   } finally {
+  //     setIsSyncing(false);
+  //   }
+  // };
+
+  console.log('orders', orders);
   
   if (error) {
     return (
@@ -395,7 +415,8 @@ export default function OrdersPage() {
               </button>
             </form>
             
-            <button
+            {/* TODO: Uncomment this when we have a way to sync orders from Shopify */}
+            {/* <button
               onClick={syncOrders}
               disabled={isSyncing || !startDate || !endDate}
               className={`ml-2 px-4 py-2 flex items-center space-x-2 ${
@@ -407,7 +428,7 @@ export default function OrdersPage() {
             >
               <Download className="h-4 w-4 mr-1" />
               <span>{isSyncing ? 'Syncing...' : 'Sync Orders'}</span>
-            </button>
+            </button> */}
             
           </div>
           
@@ -426,7 +447,7 @@ export default function OrdersPage() {
                   key={range.label}
                   onClick={() => {
                     // Clear any previous date range errors
-                    setDateRangeError(null);
+                    setDateRangeError('');
                     
                     if (range.custom) {
                       setStartDate(range.custom.start);
@@ -440,7 +461,7 @@ export default function OrdersPage() {
                       
                       fetchOrders(1, searchQuery, range.custom.start, range.custom.end);
                     } else if (range.days) {
-                      handleDateRangeSelect(range.days);
+                      handleDateRangeSelect(range.days as number | 'ytd');
                     }
                   }}
                   className="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-800 text-white rounded transition-colors"
@@ -527,7 +548,18 @@ export default function OrdersPage() {
                           </button>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {formatDateFn(order.processedAt)}
+                          <div className="flex flex-col">
+                            <div className="font-medium">
+                              {formatDateFn(order.processedAt, 'MMM dd, yyyy')}
+                              <span className="ml-1 text-xs text-gray-400">(local)</span>
+                            </div>
+                            <div className="text-gray-500 text-sm">
+                              {formatDateFn(order.processedAt, 'h:mm a', true)}
+                            </div>
+                            <div className="text-xs text-gray-400 mt-1">
+                              UTC: {new Date(order.processedAt).toISOString().replace('T', ' ').substring(0, 16)}
+                            </div>
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                           {order.email}
@@ -651,7 +683,13 @@ export default function OrdersPage() {
                                   </div>
                                   <div>
                                     <p className="text-sm font-medium text-gray-500">Date</p>
-                                    <p className="text-sm text-gray-900">{formatDateFn(order.processedAt)}</p>
+                                    <p className="text-sm text-gray-900">
+                                      {formatDateFn(order.processedAt, 'MMM dd, yyyy • h:mm a', true)}
+                                      <span className="ml-1 text-xs text-gray-500">(local)</span>
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      UTC: {new Date(order.processedAt).toISOString().replace('T', ' ').substring(0, 19)}
+                                    </p>
                                   </div>
                                   {order.paymentMethod && (
                                     <div>

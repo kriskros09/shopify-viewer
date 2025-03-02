@@ -77,51 +77,46 @@ async function testShopifyConnection() {
 }
 
 /**
- * Helper function to get the base URL for API calls
- * This is needed because server-side fetch requires absolute URLs
+ * Utility function to get the base URL for API requests
+ * @returns {Promise<string>} The base URL for API requests
  */
-function getBaseUrl() {
-  // First priority: Check if we're already on the vercel.app domain
-  if (typeof window !== 'undefined') {
-    const currentUrl = window.location.origin;
-    if (currentUrl.includes('vercel.app') || currentUrl.includes('shopify-viewer')) {
-      console.log('Using current origin as base URL:', currentUrl);
-      return currentUrl;
-    }
-  }
-  
-  // Second priority: NEXT_PUBLIC_APP_URL if set (works for both dev and prod)
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    console.log('Using NEXT_PUBLIC_APP_URL:', process.env.NEXT_PUBLIC_APP_URL);
-    return process.env.NEXT_PUBLIC_APP_URL;
-  }
-  
-  // For Vercel production deployment
+export async function getBaseUrl() {
+  // Check for VERCEL_URL environment variable first (set in Vercel deployments)
   if (process.env.VERCEL_URL) {
-    // Always use HTTPS for Vercel deployments
-    const url = `https://${process.env.VERCEL_URL}`;
-    console.log('Using VERCEL_URL:', url);
-    return url;
+    return `https://${process.env.VERCEL_URL}`;
   }
   
-  // For Vercel preview deployments
-  if (process.env.VERCEL_BRANCH_URL) {
-    const url = `https://${process.env.VERCEL_BRANCH_URL}`;
-    console.log('Using VERCEL_BRANCH_URL:', url);
-    return url;
+  // Check for NEXT_PUBLIC_VERCEL_URL environment variable (can be set manually)
+  if (process.env.NEXT_PUBLIC_VERCEL_URL) {
+    return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
   }
   
-  // For development - use an absolute URL for consistency
-  if (process.env.NODE_ENV === 'development') {
-    const url = process.env.NEXT_PUBLIC_DEV_URL || 'http://localhost:3000';
-    console.log('Using development URL:', url);
-    return url;
+  // Check if we're in production mode by checking NODE_ENV
+  if (process.env.NODE_ENV === 'production') {
+    // Use the site URL if available
+    if (process.env.NEXT_PUBLIC_SITE_URL) {
+      return process.env.NEXT_PUBLIC_SITE_URL;
+    }
+    
+    // Fallback to a default production URL if needed
+    // This should be configured in your environment variables
+    if (process.env.NEXT_PUBLIC_API_URL) {
+      return process.env.NEXT_PUBLIC_API_URL;
+    }
+    
+    // Last resort fallback for production
+    console.warn('No production URL found. Using default production URL.');
+    return 'https://your-production-domain.com'; // Replace with your actual production domain
   }
   
-  // Final fallback - restore localhost default as it's needed for Vercel
-  const fallback = process.env.SITE_URL || 'http://localhost:3000';
-  console.log('Using fallback URL:', fallback);
-  return fallback;
+  // Development environment - use localhost
+  if (typeof window !== 'undefined') {
+    // Browser environment - use the current window location
+    return window.location.origin;
+  }
+  
+  // Server-side in development
+  return 'http://localhost:3000';
 }
 
 /**
@@ -151,7 +146,7 @@ export async function syncProductsAction(): Promise<SyncResponse> {
     const isClientSide = typeof window !== 'undefined';
     
     // Get the base URL for API calls - but we may not use it depending on environment
-    const baseUrl = getBaseUrl();
+    const baseUrl = await getBaseUrl();
     console.log('Base URL available:', baseUrl);
     console.log('Environment: ', {
       isVercel,
@@ -219,7 +214,7 @@ export async function syncProductsAction(): Promise<SyncResponse> {
           // Add longer timeout for Vercel environment
           ...(isVercel ? { next: { revalidate: 0 } } : {}),
         });
-
+  
         console.log('Response received - status:', response.status, response.statusText);
         
         if (!response.ok) {
@@ -245,7 +240,7 @@ export async function syncProductsAction(): Promise<SyncResponse> {
             throw new Error(`Failed to sync products: ${response.status} ${response.statusText}`);
           }
         }
-
+  
         responseData = await response.json();
       } catch (fetchError: unknown) {
         console.error('Fetch operation failed:', fetchError);
@@ -302,7 +297,7 @@ export async function syncOrdersAction(startDate: string, endDate: string): Prom
     const isClientSide = typeof window !== 'undefined';
     
     // Get the base URL for API calls - but we may not use it depending on environment
-    const baseUrl = getBaseUrl();
+    const baseUrl = await getBaseUrl();
     console.log('Base URL available:', baseUrl);
     console.log('Environment: ', {
       isVercel,
@@ -381,7 +376,7 @@ export async function syncOrdersAction(startDate: string, endDate: string): Prom
           // Add longer timeout for Vercel environment
           ...(isVercel ? { next: { revalidate: 0 } } : {}),
         });
-
+  
         console.log('Response received - status:', response.status, response.statusText);
         
         if (!response.ok) {
@@ -407,7 +402,7 @@ export async function syncOrdersAction(startDate: string, endDate: string): Prom
             throw new Error(`Failed to sync orders: ${response.status} ${response.statusText}`);
           }
         }
-
+  
         responseData = await response.json();
       } catch (fetchError: unknown) {
         console.error('Fetch operation failed:', fetchError);
@@ -441,5 +436,77 @@ export async function syncOrdersAction(startDate: string, endDate: string): Prom
       count: 0,
       error: (error as Error).message,
     };
+  }
+}
+
+/**
+ * Function to sync Shopify products
+ * @returns {Promise<any>} The response from the API
+ */
+export async function syncProducts() {
+  try {
+    const baseUrl = await getBaseUrl();
+    console.log(`Syncing products with base URL: ${baseUrl}`);
+    
+    const response = await fetch(`${baseUrl}/api/shopify/products/sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Failed to sync products: ${response.status} ${response.statusText}`, errorText);
+      throw new Error(`Failed to sync products: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error syncing products:', error);
+    throw error;
+  }
+}
+
+/**
+ * Function to sync Shopify orders
+ * @param {string} startDate - Optional start date for order sync (YYYY-MM-DD)
+ * @param {string} endDate - Optional end date for order sync (YYYY-MM-DD)
+ * @returns {Promise<any>} The response from the API
+ */
+export async function syncOrders(startDate?: string, endDate?: string) {
+  try {
+    const baseUrl = await getBaseUrl();
+    console.log(`Syncing orders with base URL: ${baseUrl}`, { startDate, endDate });
+    
+    // Construct URL with optional date parameters
+    let url = `${baseUrl}/api/shopify/orders/sync`;
+    
+    // Add date range parameters if provided
+    const params = new URLSearchParams();
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+    
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+    
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`Failed to sync orders: ${response.status} ${response.statusText}`, errorText);
+      throw new Error(`Failed to sync orders: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error syncing orders:', error);
+    throw error;
   }
 } 
