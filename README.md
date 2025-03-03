@@ -2,7 +2,8 @@
 
 A Next.js application for viewing Shopify store data including orders, products, and analytics.
 
-## Project Structure
+<details>
+<summary>📁 Project Structure</summary>
 
 - `/app` - Next.js App Router pages and components
   - `/analytics` - Analytics dashboard
@@ -16,17 +17,20 @@ A Next.js application for viewing Shopify store data including orders, products,
   - `/services` - API service layer abstractions
   - `/providers` - React providers for context
   - `/supabase` - Supabase client and database types
+</details>
 
-
-## Mock Data
+<details>
+<summary>🧩 Mock Data</summary>
 
 Mock data is centralized in the `/lib/mock` directory to maintain consistency across the application. This includes:
 
 - Date range presets for filtering
 - Sample sales data for analytics
 - UI helper functions for rendering status badges and formatting
+</details>
 
-## Data Sources
+<details>
+<summary>🔄 Data Sources</summary>
 
 The application uses different data sources depending on the feature:
 
@@ -36,8 +40,10 @@ The application uses different data sources depending on the feature:
 When testing the application:
 1. Products and Orders can be synchronized with your actual Shopify store data
 2. Analytics visualizations use predefined sample data that does not reflect your actual store performance
+</details>
 
-## Performance Optimizations
+<details>
+<summary>⚡ Performance Optimizations</summary>
 
 This project implements several performance and scalability optimizations:
 
@@ -45,11 +51,10 @@ This project implements several performance and scalability optimizations:
 - **API Layer Abstraction** - Centralized service layer for all API operations
 - **Server Actions** - Secure server-side API operations without exposing credentials
 - **React 19** - Leveraging the new React compiler for automatic optimizations
-
-## Future Improvements
+</details>
 
 <details>
-<summary>📋 TODO List (click to expand)</summary>
+<summary>📋 Future Improvements</summary>
 
 ### Database and ORM
 - [ ] Implement a proper ORM (Prisma) for database operations
@@ -74,10 +79,10 @@ This project implements several performance and scalability optimizations:
 - [ ] Improve error handling and logging
 - [ ] Create CI/CD pipeline for automated testing
 - [ ] Add code quality checks with ESLint/Prettier
-
 </details>
 
-## Getting Started
+<details>
+<summary>🚀 Getting Started</summary>
 
 First, install dependencies:
 
@@ -98,9 +103,10 @@ yarn dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
+</details>
 
 <details>
-<summary>⚙️ Environment Variables (click to expand)</summary>
+<summary>⚙️ Environment Variables</summary>
 
 The application uses environment variables from the `.env` file in the root directory:
 
@@ -133,11 +139,10 @@ The Server Actions connect directly to the Shopify Admin API using these environ
 - `SHOPIFY_ACCESS_TOKEN`: Your private Shopify Admin API access token
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Inter](https://fonts.google.com/specimen/Inter), a modern sans-serif font.
-
 </details>
 
 <details>
-<summary>📅 Date Filtering & Testing (click to expand)</summary>
+<summary>📅 Date Filtering & Testing</summary>
 
 ### Date Filtering Logic
 
@@ -196,11 +201,10 @@ To test the date filtering functionality:
    - Verify that all orders are displayed regardless of date
 
 Note that if you need to filter by database sync date instead, this would require schema modifications and API changes.
-
 </details>
 
 <details>
-<summary>🔄 Shopify Data Synchronization (click to expand)</summary>
+<summary>🔄 Shopify Data Synchronization</summary>
 
 The application provides functionality to synchronize products and orders from your Shopify store to the Supabase database.
 
@@ -243,10 +247,10 @@ To test the synchronization:
 2. Click the "Sync Products" button on the Products page
 3. For Orders, select a date range and click "Sync Orders"
 4. Check the updated listings to verify the data was imported correctly
-
 </details>
 
-## Learn More
+<details>
+<summary>📚 Learn More</summary>
 
 To learn more about Next.js, take a look at the following resources:
 
@@ -254,9 +258,12 @@ To learn more about Next.js, take a look at the following resources:
 - [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+</details>
 
-## Deploy on Vercel
+<details>
+<summary>🚢 Deploy on Vercel</summary>
 
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+</details>
