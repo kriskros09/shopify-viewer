@@ -81,42 +81,15 @@ async function testShopifyConnection() {
  * Utility function to get the base URL for API requests
  * @returns {Promise<string>} The base URL for API requests
  */
-export async function getBaseUrl() {
-  // Check for VERCEL_URL environment variable first (set in Vercel deployments)
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-  
-  // Check for NEXT_PUBLIC_VERCEL_URL environment variable (can be set manually)
-  if (process.env.NEXT_PUBLIC_VERCEL_URL) {
-    return `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`;
-  }
-  
+export async function getBaseUrl(): Promise<string> {
   // Check if we're in production mode by checking NODE_ENV
   if (process.env.NODE_ENV === 'production') {
-    // Use the site URL if available
-    if (process.env.NEXT_PUBLIC_SITE_URL) {
-      return process.env.NEXT_PUBLIC_SITE_URL;
-    }
-    
-    // Fallback to a default production URL if needed
-    if (process.env.NEXT_PUBLIC_API_URL) {
-      return process.env.NEXT_PUBLIC_API_URL;
-    }
-    
-    // Last resort fallback for production
-    console.warn('No production URL found. Using default production URL.');
-    return 'https://your-production-domain.com'; // Replace with your actual production domain
+    // In production, use the site URL we've set in Vercel
+    return process.env.NEXT_PUBLIC_SITE_URL || '';
   }
   
-  // Development environment - use localhost
-  if (typeof window !== 'undefined') {
-    // Browser environment - use the current window location
-    return window.location.origin;
-  }
-  
-  // Server-side in development
-  return 'http://localhost:3000';
+  // In development, just use localhost
+  return process.env.NEXT_PUBLIC_APP_URL || '';
 }
 
 /**
@@ -140,37 +113,22 @@ function getEnvironmentInfo() {
  * Constructs the full URL for API calls based on environment
  */
 async function constructApiUrl(endpoint: string) {
-  const { isVercel, isClientSide } = getEnvironmentInfo();
-  const baseUrl = await getBaseUrl();
+  const { isClientSide } = getEnvironmentInfo();
   
-  // Handle client-side or Vercel server-side with proper URL construction
+  // Handle client-side specifics
   if (isClientSide) {
     // When in browser, use the current URL as base
     const currentUrl = window.location.origin;
     return `${currentUrl}${endpoint}`;
-  } 
+  }
   
-  if (isVercel) {
-    // In Vercel server environment, construct absolute URL
-    if (process.env.VERCEL_URL) {
-      // Standard Vercel deployment
-      return `https://${process.env.VERCEL_URL}${endpoint}`;
-    } 
-    if (process.env.VERCEL_BRANCH_URL) {
-      // Branch-specific preview deployment
-      return `https://${process.env.VERCEL_BRANCH_URL}${endpoint}`;
-    } 
-    if (process.env.NEXT_PUBLIC_APP_URL) {
-      // Fallback to configured app URL
-      return `${process.env.NEXT_PUBLIC_APP_URL}${endpoint}`;
-    }
-    // Last resort fallback
-    console.error('No Vercel URL environment variables found, using a placeholder that will likely fail');
-    return `https://shopify-viewer.vercel.app${endpoint}`;
-  } 
+  // For server-side, use our simplified getBaseUrl function
+  const baseUrl = await getBaseUrl();
   
-  // Local development server-side
-  return `${baseUrl}${endpoint}`;
+  // Make sure endpoint starts with /
+  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  
+  return `${baseUrl}${normalizedEndpoint}`;
 }
 
 /**

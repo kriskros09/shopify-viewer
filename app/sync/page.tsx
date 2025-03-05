@@ -44,8 +44,7 @@ export default function SyncPage() {
               
               <button
                 onClick={() => syncProducts()}
-                // disabled={productsLoading}
-                disabled={true}
+                disabled={productsLoading}
                 className={`px-4 py-2 text-white rounded-lg ${
                   productsLoading
                     ? 'bg-blue-400 cursor-not-allowed'
@@ -89,8 +88,7 @@ export default function SyncPage() {
               
               <button
                 onClick={() => syncOrders({ startDate, endDate })}
-                // disabled={ordersLoading}
-                disabled={true}
+                disabled={ordersLoading}
                 className={`px-4 py-2 text-white rounded-lg ${
                   ordersLoading
                     ? 'bg-blue-400 cursor-not-allowed'
@@ -132,8 +130,7 @@ export default function SyncPage() {
       <div className="flex justify-center">
         <button
           onClick={syncAll}
-          // disabled={productsLoading || ordersLoading}
-          disabled={true}
+          disabled={productsLoading || ordersLoading}
           className={`px-6 py-3 text-white rounded-lg ${
             productsLoading || ordersLoading
               ? 'bg-blue-400 cursor-not-allowed'
